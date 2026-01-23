@@ -1,105 +1,78 @@
-import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { createContext, useState, useRef, useEffect } from "react";
-import { db } from "../config/firebase";
+// src/context/AppContext.jsx
 
-export const AppContext = createContext();
+import { createContext, useState, useEffect, useRef } from "react"
+import axios from "axios"
+
+export const AppContext = createContext(null)
 
 const AppContextProvider = ({ children }) => {
-  const [userData, setUserData] = useState(null);        // auth user
-  const [profileData, setProfileData] = useState(null); // firestore profile
-  const [chatData, setChatData] = useState(null);
-  const [messagesId, setMessagesId] = useState(null);
-  const [chatUser, setChatUser] = useState(null);
-  const [messages, setMessages] = useState([]);
-  const [chatVisible,setChatVisible] = useState(false);
+  const [userData, setUserData] = useState(null)
+  const [chatData, setChatData] = useState([])
+  const [messagesId, setMessagesId] = useState(null)
+  const [chatUser, setChatUser] = useState(null)
+  const [messages, setMessages] = useState([])
 
-  const lastSeenInterval = useRef(null);
-  const loadedUidRef = useRef(null); // ✅ prevents reloading same user
+  const lastSeenInterval = useRef(null)
 
+  /* ================= LOAD USER (BACKEND) ================= */
   const loadUserData = async (uid) => {
+    if (!uid) return
+
     try {
-      // ✅ PREVENT INFINITE RELOAD FOR SAME USER
-      if (loadedUidRef.current === uid) {
-        return profileData;
-      }
-      loadedUidRef.current = uid;
+      const res = await axios.get(
+        `http://localhost:5000/api/users/${uid}`
+      )
 
-      const userRef = doc(db, "users", uid);
-      const userSnap = await getDoc(userRef);
+      setUserData(res.data)
 
-      if (!userSnap.exists()) {
-        setProfileData(null);
-        return null;
-      }
+      // simulate online heartbeat (optional)
+      if (lastSeenInterval.current) clearInterval(lastSeenInterval.current)
 
-      const profile = userSnap.data();
-      setProfileData(profile);
-
-      console.log("Profile loaded:", profile);
-
-      // ✅ UPDATE LAST SEEN ONCE
-      await updateDoc(userRef, { lastSeen: Date.now() });
-
-      // ✅ CLEAR OLD INTERVAL
-      if (lastSeenInterval.current) {
-        clearInterval(lastSeenInterval.current);
-      }
-
-      // ✅ START ONLY ONE INTERVAL
-      lastSeenInterval.current = setInterval(async () => {
-        await updateDoc(userRef, { lastSeen: Date.now() });
-      }, 60000);
-
-      return profile;
-
-    } catch (error) {
-      console.error("loadUserData error:", error);
-      return null;
-    }
-  };
-
-
-  useEffect(()=>{
-    if (userData) {
-        const chatRef = doc(db,'chats', userData.id);
-        const unSub = onSnapshot(chatRef,async (res)=> {
-            const chatItems = res.data().chatData;
-            const tempData = [];
-            for(const item of chatItems){
-                const userRef = doc(db,'users',item.rId);
-                const userSnap = await getDoc(userRef);
-                const userData = userSnap.data();
-                tempData.push({...item, userData})
-            }
-            setChatData(tempData.sort(()=>b.updatedAt - a.updatedAt))
+      lastSeenInterval.current = setInterval(() => {
+        axios.post("http://localhost:5000/api/users/last-seen", {
+          userId: uid
         })
-        return () => {
-            unSub();
-        }
+      }, 60000)
+    } catch (err) {
+      console.error("Failed to load user data", err)
+    }
+  }
+
+  /* ================= LOAD CHAT LIST (BACKEND) ================= */
+  useEffect(() => {
+    if (!userData?.id) return
+
+    const loadChats = async () => {
+      try {
+        const res = await axios.get(
+          `http://localhost:5000/api/chats/${userData.id}`
+        )
+        setChatData(res.data)
+      } catch (err) {
+        console.error("Failed to load chats", err)
+      }
     }
 
-
-  },[userData])
-
-  const value = {
-    userData,
-    setUserData,
-    profileData,
-    setProfileData,
-    chatData,
-    setChatData,
-    loadUserData,
-    messagesId, setMessagesId,
-    chatUser, setChatUser,
-    messages, setMessages,
-    chatVisible, setChatVisible
-  };
+    loadChats()
+  }, [userData?.id])
 
   return (
-    <AppContext.Provider value={value}>
+    <AppContext.Provider
+      value={{
+        userData,
+        loadUserData,
+        chatData,
+        messagesId,
+        setMessagesId,
+        chatUser,
+        setChatUser,
+        messages,
+        setMessages
+      }}
+    >
       {children}
     </AppContext.Provider>
-  );
-};
+  )
+}
 
-export default AppContextProvider;
+export default AppContextProvider

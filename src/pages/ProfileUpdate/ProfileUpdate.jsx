@@ -1,91 +1,101 @@
-import React, { useEffect, useState, useContext } from 'react'
-import './ProfileUpdate.css'
-import assets from '../../assets/assets'
+// src/pages/ProfileUpdate/ProfileUpdate.jsx
 
-import { onAuthStateChanged } from 'firebase/auth'
-import { doc, getDoc, updateDoc } from 'firebase/firestore'
-import { toast } from 'react-toastify'
+import React, { useEffect, useState, useContext } from "react";
+import "./ProfileUpdate.css";
+import assets from "../../assets/assets";
 
-import { db, auth } from '../../config/firebase'
-import { useNavigate } from 'react-router-dom'
-import upload from '../../lib/upload'
-import { AppContext } from '../../context/AppContext'
+import { doc, getDoc, updateDoc, setDoc } from "firebase/firestore";
+import { toast } from "react-toastify";
+
+import { db, auth } from "../../config/firebase";
+import { useNavigate } from "react-router-dom";
+import upload from "../../lib/upload";
+import { AppContext } from "../../context/AppContext";
 
 const ProfileUpdate = () => {
-  const navigate = useNavigate()
+  const navigate = useNavigate();
+  const { userData, loadUserData } = useContext(AppContext);
 
-  const { setUserData } = useContext(AppContext) // ✅ FIXED
+  const [image, setImage] = useState(null);
+  const [name, setName] = useState("");
+  const [bio, setBio] = useState("");
+  const [prevImage, setPrevImage] = useState("");
 
-  const [image, setImage] = useState(false)
-  const [name, setName] = useState("")
-  const [bio, setBio] = useState("")
-  const [uid, setUid] = useState("")
-  const [prevImage, setPrevImage] = useState("")
+  /* ================= LOAD EXISTING PROFILE ================= */
+  useEffect(() => {
+    if (!userData?.id) return;
 
-  const profileUpdate = async (event) => {
-    event.preventDefault()
+    const loadProfile = async () => {
+      const ref = doc(db, "users", userData.id);
+      const snap = await getDoc(ref);
+
+      if (snap.exists()) {
+        const data = snap.data();
+        setName(data.name || "");
+        setBio(data.bio || "");
+        setPrevImage(data.avatar || "");
+      }
+    };
+
+    loadProfile();
+  }, [userData]);
+
+  /* ================= SAVE PROFILE ================= */
+  const profileUpdate = async (e) => {
+    e.preventDefault();
+
+    if (!userData?.id) {
+      toast.error("User not authenticated");
+      return;
+    }
 
     try {
       if (!prevImage && !image) {
-        toast.error("Upload profile picture")
-        return
+        toast.error("Please upload a profile picture");
+        return;
       }
 
-      const docRef = doc(db, 'users', uid)
+      let avatarUrl = prevImage;
 
       if (image) {
-        const imgUrl = await upload(image)
-        setPrevImage(imgUrl)
-
-        await updateDoc(docRef, {
-          avatar: imgUrl,
-          name,
-          bio
-        })
-      } else {
-        await updateDoc(docRef, {
-          name,
-          bio
-        })
+        avatarUrl = await upload(image);
       }
 
-      const snap = await getDoc(docRef)
-      setUserData(snap.data())
+      const userRef = doc(db, "users", userData.id);
 
-      navigate('/chat')
+      await updateDoc(userRef, {
+        name,
+        bio,
+        avatar: avatarUrl
+      });
 
-    } catch (error) {
-      console.error(error)
-      toast.error(error.message)
+      // Ensure chats doc exists
+      await setDoc(
+        doc(db, "chats", userData.id),
+        { chatsData: [] },
+        { merge: true }
+      );
+
+      // ✅ refresh global context (SINGLE source of truth)
+      if (typeof loadUserData === "function") {
+        await loadUserData(userData.id);
+      }
+
+      toast.success("Profile updated successfully");
+
+      // ✅ guaranteed redirect
+      navigate("/chat", { replace: true });
+
+    } catch (err) {
+      console.error("Profile update error:", err);
+      toast.error(err.message || "Profile update failed");
     }
-  }
+  };
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        setUid(user.uid)
-
-        const docRef = doc(db, "users", user.uid)
-        const docSnap = await getDoc(docRef)
-
-        if (docSnap.exists()) {
-          const data = docSnap.data()
-
-          if (data.name) setName(data.name)
-          if (data.bio) setBio(data.bio)
-          if (data.avatar) setPrevImage(data.avatar)
-        }
-      } else {
-        navigate('/')
-      }
-    })
-
-    return () => unsubscribe()
-  }, [navigate])
-
+  /* ================= UI ================= */
   return (
-    <div className='profile'>
-      <div className='profile-container'>
+    <div className="profile">
+      <div className="profile-container">
         <form onSubmit={profileUpdate}>
           <h3>Profile Details</h3>
 
@@ -93,7 +103,7 @@ const ProfileUpdate = () => {
             <input
               type="file"
               id="avatar"
-              accept=".png, .jpg, .jpeg"
+              accept="image/png, image/jpeg, image/jpg, image/webp"
               hidden
               onChange={(e) => setImage(e.target.files[0])}
             />
@@ -122,7 +132,7 @@ const ProfileUpdate = () => {
             value={bio}
             onChange={(e) => setBio(e.target.value)}
             required
-          ></textarea>
+          />
 
           <button type="submit">Save Profile</button>
         </form>
@@ -138,7 +148,7 @@ const ProfileUpdate = () => {
         />
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default ProfileUpdate
+export default ProfileUpdate;

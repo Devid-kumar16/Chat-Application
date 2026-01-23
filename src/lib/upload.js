@@ -1,45 +1,30 @@
-import {
-  getStorage,
-  ref,
-  uploadBytesResumable,
-  getDownloadURL
-} from "firebase/storage";
-
-import { app } from "../config/firebase"; // ✅ FIXED PATH
+// src/lib/upload.js
 
 const upload = async (file) => {
-  const storage = getStorage(app);
+  if (!file) {
+    throw new Error("No file selected");
+  }
 
-  const storageRef = ref(
-    storage,
-    `images/${Date.now()}_${file.name}`
-  );
+  const isVideo = file.type.startsWith("video/");
+  const endpoint = isVideo
+    ? "http://localhost:5000/api/upload/video"
+    : "http://localhost:5000/api/upload/image";
 
-  const uploadTask = uploadBytesResumable(storageRef, file);
+  const formData = new FormData();
+  formData.append("file", file);
 
-  return new Promise((resolve, reject) => {
-    uploadTask.on(
-      "state_changed",
-
-      (snapshot) => {
-        const progress =
-          (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        console.log("Upload is " + progress.toFixed(2) + "% done");
-      },
-
-      (error) => {
-        console.error("Upload failed:", error);
-        reject(error);
-      },
-
-      async () => {
-        const downloadURL = await getDownloadURL(
-          uploadTask.snapshot.ref
-        );
-        resolve(downloadURL);
-      }
-    );
+  const response = await fetch(endpoint, {
+    method: "POST",
+    body: formData
   });
+
+  const data = await response.json();
+
+  if (!response.ok || !data.success) {
+    throw new Error(data.message || "File upload failed");
+  }
+
+  return data.fileUrl;
 };
 
 export default upload;

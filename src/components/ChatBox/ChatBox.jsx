@@ -1,160 +1,281 @@
-import React, { useEffect } from 'react'
-import './ChatBox.css'
-import assets from '../../assets/assets'
-import { AppContext } from '../../context/AppContext'
+// src/components/ChatBox/ChatBox.jsx
+
+import React, { useEffect, useContext, useState, useRef } from "react"
+import "./ChatBox.css"
+import socket from "../../socket"
+
+import assets from "../../assets/assets"
+import { AppContext } from "../../context/AppContext"
+import upload from "../../lib/upload"
+import { toast } from "react-toastify"
+import EmojiPicker from "emoji-picker-react"
+import { sendMessageApi, getMessagesApi } from "../../api/messageApi"
 
 const ChatBox = () => {
+  const {
+    userData,
+    messagesId,
+    chatUser,
+    messages,
+    setMessages,
+    chatVisible,
+    setChatVisible
+  } = useContext(AppContext)
 
-  const {userData,messagesId,chatUser,messages,setMessages,chatVisible,setChatVisible} = useContext(AppContext);
+  const [input, setInput] = useState("")
+  const [showEmoji, setShowEmoji] = useState(false)
+  const [recording, setRecording] = useState(false)
 
-  const [input,setInput] = useState("");
-  const sendMessage = async () => {
-    try {
-      if (input && messagesId) {
-        await updatedDoc (doc(db, 'messages', messagesId),{
-          messages: arrayUnion({
-            sId:userData.id,
-            text:input,
-            createdAt:new Date()
-          })
-        })
-        const userIDs = [chatUser.rId,userData.id];
+  const endRef = useRef(null)
+  const mediaRecorderRef = useRef(null)
 
-        userIDs.forEach(async (id) => {
-          const userChatsRef = doc(db,'chats',id);
-          const userChatsSnapshot = await getDoc(userChatsRef);
+  /* ================= AUTO SCROLL ================= */
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [messages])
 
-          if (userChatSnapshot.exists()){
-            const userChatData = userChatsSnapshot.data();
-            const chatIndex = userChatData.chatsData.finkIndex((c)=> c.messageId === messageId);
-            userChatData.chatsData[chatIndex].lastMessage = input.slice(0,30);
-            userChatData.chatsData[chatIndex].updatedAt = Data.now();
-            if (userChatData.chatsData[chatIndex].rId === userData.id) {
-              userChatData.chatsData[chatIndex].messageSeen = false;
-            }
-            await updateDoc(userChatsRef,{
-              chatsData:userChatData.chatsData
-            })
-          }
-        })
+  /* ================= LOAD MESSAGES ================= */
+  useEffect(() => {
+    if (!messagesId) return
+
+    const loadMessages = async () => {
+      try {
+        const res = await getMessagesApi(messagesId)
+        setMessages(res.data || [])
+      } catch (err) {
+        console.error(err)
+        toast.error("Failed to load messages")
       }
-    } catch (error) {
-      toast.error(error.message)
-
     }
-    setInput("");
+
+    loadMessages()
+  }, [messagesId, setMessages])
+
+
+useEffect(() => {
+  if (!messagesId) return
+
+  socket.connect()
+  socket.emit("join-chat", messagesId)
+
+  return () => {
+    socket.disconnect()
+  }
+}, [messagesId])
+
+
+useEffect(() => {
+  socket.on("receive-message", (message) => {
+    setMessages(prev => [...prev, message])
+  })
+
+  return () => {
+    socket.off("receive-message")
+  }
+}, [setMessages])
+
+
+
+  /* ================= REFRESH MESSAGES ================= */
+  const refreshMessages = async () => {
+    const res = await getMessagesApi(messagesId)
+    setMessages(res.data || [])
   }
 
-  const sendImage = async (e) => {
+  /* ================= SEND TEXT ================= */
+const sendMessage = async () => {
+  if (!input.trim()) return
+
+  try {
+    const messagePayload = {
+      chatId: messagesId,
+      senderId: userData.id,
+      receiverId: chatUser.rId,
+      text: input.trim()
+    }
+
+    await sendMessageApi(messagePayload)
+
+socket.emit("send-message", {
+  chatId: messagesId,
+  message: {
+    ...payload,
+    sender_id: userData.id,
+    created_at: new Date()
+  }
+})
+
+    setInput("")
+  } catch {
+    toast.error("Message not sent")
+  }
+}
+
+
+  /* ================= SEND MEDIA ================= */
+  const sendMedia = async (e) => {
+    const file = e.target.files[0]
+    if (!file || !messagesId) return
+
     try {
-      const fileUrl = await uploa(e.target.files[0]);
+      const url = await upload(file)
+      const type = file.type.startsWith("video")
+        ? "video"
+        : file.type.startsWith("audio")
+        ? "audio"
+        : "image"
 
-      if (fileUrl && messagesId) {
-        await updatedDoc (doc(db, 'messages', messagesId),{
-          messages: arrayUnion({
-            sId:userData.id,
-            image:fileUrl,
-            createdAt:new Date()
-          })
-        })
-
-
-        const userIDs = [chatUser.rId,userData.id];
-
-        userIDs.forEach(async (id) => {
-          const userChatsRef = doc(db,'chats',id);
-          const userChatsSnapshot = await getDoc(userChatsRef);
-
-          if (userChatSnapshot.exists()){
-            const userChatData = userChatsSnapshot.data();
-            const chatIndex = userChatData.chatsData.finkIndex((c)=> c.messageId === messageId);
-            userChatData.chatsData[chatIndex].lastMessage = "image";
-            userChatData.chatsData[chatIndex].updatedAt = Data.now();
-            if (userChatData.chatsData[chatIndex].rId === userData.id) {
-              userChatData.chatsData[chatIndex].messageSeen = false;
-            }
-            await updateDoc(userChatsRef,{
-              chatsData:userChatData.chatsData
-            })
-          }
-        })
-
-      }
-    } catch (error) {
-      toast.error(error.message)
-      
-
-    }
-  }
-
-  const convertTimestamp = (timestamp) => {
-    let date = timestamp.toDate();
-    const hour = date.getHours();
-    const minute = date.getMinutes();
-    if (hour>12) {
-      return hour-12 + ":" + minute + "PM";
-
-    }
-    else
-    {
-      return hour + ":" + minute + "AM";
-    }
-  }
-  useEffect(()=> {
-    if (messagesId) {
-      const unSub = onSnapshot(doc(db, 'messages',messagesId), (res)=>{
-        setMessages(res.data().messages.reverse())
+      await sendMessageApi({
+        chatId: messagesId,
+        senderId: userData.id,
+        receiverId: chatUser.rId,
+        media: url,
+        mediaType: type
       })
-      return ()=> {
-        unSub();
-      }
+
+      await refreshMessages()
+    } catch {
+      toast.error("Media upload failed")
     }
-  },[messagesId])
+  }
 
+  /* ================= VOICE ================= */
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      mediaRecorderRef.current = new MediaRecorder(stream)
 
-  return chatUser ?(
-    <div className={ `chat-box${chatVisible?"":"hidden"}`}>
-      <div className='chat-user'>
+      const chunks = []
+      mediaRecorderRef.current.ondataavailable = e => chunks.push(e.data)
+
+      mediaRecorderRef.current.onstop = async () => {
+        const blob = new Blob(chunks, { type: "audio/webm" })
+        const url = await upload(blob)
+
+        await sendMessageApi({
+          chatId: messagesId,
+          senderId: userData.id,
+          receiverId: chatUser.rId,
+          media: url,
+          mediaType: "audio"
+        })
+
+        await refreshMessages()
+      }
+
+      mediaRecorderRef.current.start()
+      setRecording(true)
+    } catch {
+      toast.error("Microphone permission denied")
+    }
+  }
+
+  const stopRecording = () => {
+    mediaRecorderRef.current?.stop()
+    setRecording(false)
+  }
+
+  /* ================= FORMAT TIME ================= */
+  const formatTime = (ts) => {
+    if (!ts) return ""
+    const d = new Date(ts)
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  }
+
+  /* ================= EMPTY STATE ================= */
+  if (!chatUser) {
+    return (
+      <div className={`chat-welcome ${chatVisible ? "" : "hidden"}`}>
+        <img src={assets.logo_icon} alt="" />
+        <p>Select a chat to start messaging</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className={`chat-box ${chatVisible ? "" : "hidden"}`}>
+      {/* HEADER */}
+      <div className="chat-user">
         <img src={chatUser.userData.avatar} alt="" />
-        <p>
-          {chatUser.userData.name} {Date.now()-chatUser.userData.lastSeen <= 70000 ?<img className='dot' src={assets.green_dot} alt="" /> : null}</p>
-        <img src={assets.help_icon} className='help' alt="" />
-        <img onClick={()=>setChatVisible(false)} src={assets.arrow_icon} className='arrow' alt="" />
+        <p>{chatUser.userData.name}</p>
+        <img
+          src={assets.arrow_icon}
+          className="arrow"
+          onClick={() => setChatVisible(false)}
+          alt=""
+        />
       </div>
 
-      <div className='chat-msg'>
-        {messages.map((msg,index)=>(
-          <div key={index} className={msg.sId === userData.id ? "s-msg" : "r-msg" }>
-            {msg["image"]
-            ? <img className='msg-img' src={msg.image} alt="" />
-            :<p className='msg'>{msg.text}</p>
-          }
-          
-          <div>
-            <img src={msg.sId === userData.id ? userData.avatar : chatUser.userData.avatar} alt="" />
-            <p>{convertTimestamp(msg.createdAt)}</p>
+      {/* MESSAGES */}
+      <div className="chat-msg">
+        {messages.map((msg) => (
+          <div
+            key={msg.id}
+            className={msg.sender_id === userData.id ? "s-msg" : "r-msg"}
+          >
+            {msg.media_type === "image" && (
+              <img className="msg-img" src={msg.media} alt="" />
+            )}
+
+            {msg.media_type === "video" && (
+              <video className="msg-video" controls src={msg.media} />
+            )}
+
+            {msg.media_type === "audio" && (
+              <audio controls src={msg.media} />
+            )}
+
+            {msg.text && <p className="msg">{msg.text}</p>}
+
+            <span className="time">{formatTime(msg.created_at)}</span>
           </div>
-        </div>
-
         ))}
-
+        <div ref={endRef} />
       </div>
 
-      <div className='chat-input'>
-        <input onChange={(e)=>setInput(e.target.value)} value={input} type="text" placeholder='Send a message...' />
-        <input onChange={sendImage} type="file" id='image' accept='image/png, image/jpeg' hidden />
-        <label htmlFor="image">
-          <img src={assets.gallary_icon} alt="" />
+      {/* INPUT */}
+      <div className="chat-input">
+        <img
+          src={assets.emoji_icon}
+          alt=""
+          onClick={() => setShowEmoji(!showEmoji)}
+        />
+
+        <input
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          placeholder="Send a message..."
+          onKeyDown={e => e.key === "Enter" && sendMessage()}
+        />
+
+        {showEmoji && (
+          <div className="emoji-picker">
+            <EmojiPicker onEmojiClick={e => setInput(p => p + e.emoji)} />
+          </div>
+        )}
+
+        <input
+          id="mediaUpload"
+          type="file"
+          hidden
+          accept="image/*,video/*,audio/*"
+          onChange={sendMedia}
+        />
+
+        <label htmlFor="mediaUpload">
+          <img src={assets.gallery_icon} alt="" />
         </label>
-        <input type="file" id='image' hidden />
-        <img onClick={sendMessage} src={assets.send_button} alt="" />
+
+        <img
+          src={recording ? assets.mic_on : assets.mic_off}
+          onClick={recording ? stopRecording : startRecording}
+          alt=""
+        />
+
+        <img src={assets.send_button} onClick={sendMessage} alt="" />
       </div>
     </div>
   )
-  :<div className={ `chat-welcome${chatVisible?"":"hidden"}`}>
-    <img src={assets.logo_icon} alt="" />
-    <p>Chat anytime, anywhere</p>
-  </div>
 }
 
 export default ChatBox

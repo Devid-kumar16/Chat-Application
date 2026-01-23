@@ -1,49 +1,75 @@
-import React, { useState } from 'react'
-import assets from '../../assets/assets'
-import './Login.css'
-import { signup, login, resetPass } from '../../config/firebase'
-import { toast } from 'react-toastify'
+// src/pages/Login/Login.jsx
+
+import React, { useState, useContext } from "react"
+import assets from "../../assets/assets"
+import "./Login.css"
+import axios from "axios"
+import { toast } from "react-toastify"
+import { AppContext } from "../../context/AppContext"
+import { useNavigate } from "react-router-dom"
 
 const Login = () => {
-  const [currState, setCurrState] = useState("Sign up")
+  const { setUserData } = useContext(AppContext)
+  const navigate = useNavigate()
+
+  const [currState, setCurrState] = useState("Login")
   const [userName, setUserName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
 
-  const onSubmitHandler = async (event) => {
-    event.preventDefault()
+  const onSubmitHandler = async (e) => {
+    e.preventDefault()
+    if (loading) return
 
     try {
       setLoading(true)
 
-      if (currState === "Sign up") {
-        const user = await signup(userName, email, password)
-        console.log("Signup success:", user)
-      } else {
-        const user = await login(email, password)
-        console.log("Login success:", user)
-      }
+      const url =
+        currState === "Sign up"
+          ? "http://localhost:5000/api/auth/register"
+          : "http://localhost:5000/api/auth/login"
 
-    } catch (error) {
-      console.error("Auth error:", error)
-      toast.error(error.message)
+      const payload =
+        currState === "Sign up"
+          ? { name: userName, email, password }
+          : { email, password }
+
+      const res = await axios.post(url, payload)
+
+      // 🔐 store token
+      localStorage.setItem("token", res.data.token)
+
+      // 👤 store user
+      setUserData(res.data.user)
+
+      toast.success(
+        currState === "Sign up"
+          ? "Account created successfully"
+          : "Login successful"
+      )
+
+      navigate("/chat")
+    } catch (err) {
+      toast.error(
+        err.response?.data?.message || "Authentication failed"
+      )
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className='login'>
+    <div className="login">
       <img src={assets.logo_big} alt="logo" className="logo" />
 
-      <form onSubmit={onSubmitHandler} className='login-form'>
+      <form onSubmit={onSubmitHandler} className="login-form">
         <h2>{currState}</h2>
 
         {currState === "Sign up" && (
           <input
             type="text"
-            placeholder='Username'
+            placeholder="Username"
             className="form-input"
             value={userName}
             onChange={(e) => setUserName(e.target.value)}
@@ -53,7 +79,7 @@ const Login = () => {
 
         <input
           type="email"
-          placeholder='Email address'
+          placeholder="Email address"
           className="form-input"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -62,7 +88,7 @@ const Login = () => {
 
         <input
           type="password"
-          placeholder='Password'
+          placeholder="Password"
           className="form-input"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -83,22 +109,21 @@ const Login = () => {
         </div>
 
         <div className="login-forgot">
-          {currState === "Sign up" ? (
+          {currState === "Login" ? (
             <p className="login-toggle">
-              Already have an account?{" "}
-              <span onClick={() => setCurrState("Login")}>Login here</span>
+              Create an account{" "}
+              <span onClick={() => setCurrState("Sign up")}>
+                Click here
+              </span>
             </p>
           ) : (
             <p className="login-toggle">
-              Create an account{" "}
-              <span onClick={() => setCurrState("Sign up")}>Click here</span>
+              Already have an account?{" "}
+              <span onClick={() => setCurrState("Login")}>
+                Login here
+              </span>
             </p>
           )}
-          {currState === "Login" ?
-            <p className="login-toggle">
-              Forgot Password ?
-              <span onClick={() => resetPass(email)}>reset here</span>
-            </p>:null}
         </div>
       </form>
     </div>
