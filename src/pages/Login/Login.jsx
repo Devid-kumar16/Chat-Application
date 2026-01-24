@@ -1,16 +1,16 @@
-// src/pages/Login/Login.jsx
-
-import React, { useState, useContext } from "react"
+import React, { useState, useContext, useRef } from "react"
 import assets from "../../assets/assets"
 import "./Login.css"
-import axios from "axios"
 import { toast } from "react-toastify"
 import { AppContext } from "../../context/AppContext"
 import { useNavigate } from "react-router-dom"
+import { loginApi, registerApi } from "../../api/authApi"
 
 const Login = () => {
   const { setUserData } = useContext(AppContext)
   const navigate = useNavigate()
+
+  const requestLock = useRef(false)   // 🔒 HARD LOCK
 
   const [currState, setCurrState] = useState("Login")
   const [userName, setUserName] = useState("")
@@ -20,40 +20,35 @@ const Login = () => {
 
   const onSubmitHandler = async (e) => {
     e.preventDefault()
-    if (loading) return
+
+    // 🚫 BLOCK DUPLICATE EXECUTION
+    if (requestLock.current) return
+
+    requestLock.current = true
+    setLoading(true)
 
     try {
-      setLoading(true)
+      let res
 
-      const url =
-        currState === "Sign up"
-          ? "http://localhost:5000/api/auth/register"
-          : "http://localhost:5000/api/auth/login"
+      if (currState === "Sign up") {
+        res = await registerApi({
+          username: userName,
+          email,
+          password
+        })
+        toast.success("Account created successfully")
+      } else {
+        res = await loginApi({ email, password })
+        toast.success("Login successful")
+      }
 
-      const payload =
-        currState === "Sign up"
-          ? { name: userName, email, password }
-          : { email, password }
-
-      const res = await axios.post(url, payload)
-
-      // 🔐 store token
       localStorage.setItem("token", res.data.token)
-
-      // 👤 store user
       setUserData(res.data.user)
-
-      toast.success(
-        currState === "Sign up"
-          ? "Account created successfully"
-          : "Login successful"
-      )
 
       navigate("/chat")
     } catch (err) {
-      toast.error(
-        err.response?.data?.message || "Authentication failed"
-      )
+      toast.error(err.response?.data?.message || "Authentication failed")
+      requestLock.current = false  // allow retry if real error
     } finally {
       setLoading(false)
     }
@@ -96,11 +91,7 @@ const Login = () => {
         />
 
         <button type="submit" disabled={loading}>
-          {loading
-            ? "Please wait..."
-            : currState === "Sign up"
-            ? "Create Account"
-            : "Login"}
+          {loading ? "Please wait..." : "Login"}
         </button>
 
         <div className="login-term">
@@ -108,23 +99,19 @@ const Login = () => {
           <p>Agree to the terms of use & privacy policy</p>
         </div>
 
-        <div className="login-forgot">
+        <p className="login-toggle">
           {currState === "Login" ? (
-            <p className="login-toggle">
+            <>
               Create an account{" "}
-              <span onClick={() => setCurrState("Sign up")}>
-                Click here
-              </span>
-            </p>
+              <span onClick={() => setCurrState("Sign up")}>Click here</span>
+            </>
           ) : (
-            <p className="login-toggle">
+            <>
               Already have an account?{" "}
-              <span onClick={() => setCurrState("Login")}>
-                Login here
-              </span>
-            </p>
+              <span onClick={() => setCurrState("Login")}>Login here</span>
+            </>
           )}
-        </div>
+        </p>
       </form>
     </div>
   )

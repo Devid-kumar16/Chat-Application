@@ -66,3 +66,12 @@
     display: none;
   }
 }
+
+.rs-media-grid::-webkit-scrollbar {
+  height: 6px;
+}
+
+.rs-media-grid::-webkit-scrollbar-thumb {
+  background: #4b6fff;
+  border-radius: 4px;
+}

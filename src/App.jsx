@@ -20,8 +20,11 @@ const App = () => {
     }
 
     meApi(token)
-      .then(res => setUserData(res.data))
-      .catch(() => localStorage.removeItem("token"))
+      .then((res) => setUserData(res.data))
+      .catch(() => {
+        localStorage.removeItem("token")
+        setUserData(null)
+      })
       .finally(() => setLoading(false))
   }, [setUserData])
 
@@ -36,17 +39,14 @@ const App = () => {
           path="/login"
           element={userData ? <Navigate to="/chat" /> : <Login />}
         />
-
-        <Route
-          path="/profile"
-          element={!userData ? <Navigate to="/login" /> : <ProfileUpdate />}
-        />
-
         <Route
           path="/chat"
           element={!userData ? <Navigate to="/login" /> : <Chat />}
         />
-
+        <Route
+          path="/profile"
+          element={!userData ? <Navigate to="/login" /> : <ProfileUpdate />}
+        />
         <Route path="*" element={<Navigate to="/login" />} />
       </Routes>
     </>

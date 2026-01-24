@@ -4,35 +4,29 @@ const db = require("../db/db");
 const authMiddleware = require("../middleware/authMiddleware")
 const router = express.Router();
 
+/* ================= OPEN CHAT ================= */
 router.post("/open", async (req, res) => {
   const { senderId, receiverId } = req.body;
 
-  // 🔒 enforce order in backend (industry standard)
   const user1 = Math.min(senderId, receiverId);
   const user2 = Math.max(senderId, receiverId);
 
   try {
-    // 1️⃣ Check existing chat
     const [rows] = await db.query(
-      "SELECT id FROM chats WHERE user1_id = ? AND user2_id = ?",
+      "SELECT id FROM chats WHERE user1_id=? AND user2_id=?",
       [user1, user2]
     );
 
-    if (rows.length) {
-      return res.json({ chatId: rows[0].id });
-    }
+    if (rows.length) return res.json({ chatId: rows[0].id });
 
-    // 2️⃣ Create chat
     const [result] = await db.query(
-      "INSERT INTO chats (user1_id, user2_id) VALUES (?, ?)",
+      "INSERT INTO chats (user1_id, user2_id) VALUES (?,?)",
       [user1, user2]
     );
 
     res.json({ chatId: result.insertId });
-
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json(err);
   }
 });
 
@@ -86,18 +80,24 @@ router.post("/create", async (req, res) => {
 
 
 /* ================= GET USER CHATS ================= */
+/* ================= GET USER CHATS ================= */
 router.get("/user/:userId", authMiddleware, async (req, res) => {
   const { userId } = req.params
 
   try {
     const [rows] = await db.query(
       `
-      SELECT c.*, 
+      SELECT 
+        c.id AS chatId,
+        c.user1_id,
+        c.user2_id,
         u1.username AS user1_name,
-        u2.username AS user2_name
+        u1.avatar AS user1_avatar,
+        u2.username AS user2_name,
+        u2.avatar AS user2_avatar
       FROM chats c
-      JOIN chat_user u1 ON u1.id = c.user1_id
-      JOIN chat_user u2 ON u2.id = c.user2_id
+      JOIN users u1 ON u1.id = c.user1_id
+      JOIN users u2 ON u2.id = c.user2_id
       WHERE c.user1_id = ? OR c.user2_id = ?
       ORDER BY c.created_at DESC
       `,
@@ -112,29 +112,44 @@ router.get("/user/:userId", authMiddleware, async (req, res) => {
 })
 
 
-/* ================= GET USER CHATS ================= */
+
+/* ================= GET MY CHATS ================= */
 router.get("/my", authMiddleware, async (req, res) => {
+  const userId = req.user.id;
+
   try {
     const [rows] = await db.query(
       `
-      SELECT c.*, 
-        u1.username AS user1_name,
-        u1.avatar AS user1_avatar,
-        u2.username AS user2_name,
-        u2.avatar AS user2_avatar
-      FROM chats c
-      JOIN chat_user u1 ON u1.id = c.user1_id
-      JOIN chat_user u2 ON u2.id = c.user2_id
-      WHERE c.user1_id = ? OR c.user2_id = ?
-      `,
-      [req.user.id, req.user.id]
-    )
+      SELECT 
+        c.id AS chatId,
+        IF(c.user1_id = ?, c.user2_id, c.user1_id) AS rId,
+        u.username,
+        u.avatar,
 
-    res.json(rows)
+        -- Last message
+        (SELECT text FROM messages 
+         WHERE chat_id = c.id 
+         ORDER BY created_at DESC LIMIT 1) AS lastMessage,
+
+        -- Unread count
+        (SELECT COUNT(*) FROM messages 
+         WHERE chat_id = c.id 
+           AND receiver_id = ? 
+           AND is_read = FALSE) AS unreadCount
+
+      FROM chats c
+      JOIN users u ON u.id = IF(c.user1_id = ?, c.user2_id, c.user1_id)
+      WHERE c.user1_id = ? OR c.user2_id = ?
+      ORDER BY c.created_at DESC
+      `,
+      [userId, userId, userId, userId, userId]
+    );
+
+    res.json(rows);
   } catch (err) {
-    console.error(err)
-    res.status(500).json({ message: "Server error" })
+    res.status(500).json(err);
   }
-})
+});
+
 
 module.exports = router;

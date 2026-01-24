@@ -2,8 +2,24 @@ import axios from "axios"
 
 const API = "http://localhost:5000/api/messages"
 
-export const sendMessageApi = (data) =>
-  axios.post(`${API}/send`, data)
+/* ================= SEND MESSAGE ================= */
+export const sendMessageApi = (data) => {
+  const token = localStorage.getItem("token")
 
-export const getMessagesApi = (chatId) =>
-  axios.get(`${API}/${chatId}`)
+  return axios.post(`${API}/send`, data, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  })
+}
+
+/* ================= GET MESSAGES ================= */
+export const getMessagesApi = (chatId) => {
+  const token = localStorage.getItem("token")
+
+  return axios.get(`${API}/${chatId}`, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  })
+}

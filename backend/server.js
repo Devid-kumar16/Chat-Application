@@ -38,6 +38,10 @@ app.set("io", io)
 app.use("/api/users", userRoutes)
 app.use("/api/messages", messageRoutes)
 app.use("/api/chats", chatRoutes)
+const uploadRoutes = require("./routes/uploadRoutes")
+
+app.use("/api/upload", uploadRoutes)
+app.use("/uploads", express.static("uploads"))
 
 // ================= SOCKET EVENTS =================
 io.on("connection", (socket) => {

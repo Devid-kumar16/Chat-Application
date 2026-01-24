@@ -61,43 +61,28 @@ router.post("/register", async (req, res) => {
 
 /* ================= LOGIN ================= */
 router.post("/login", async (req, res) => {
-  const { email, password } = req.body
+  const { email, password } = req.body;
 
-  try {
-    const [rows] = await db.query(
-      "SELECT * FROM users WHERE email = ?",
-      [email]
-    )
+  const [rows] = await db.query("SELECT * FROM users WHERE email=?", [email]);
+  if (!rows.length) return res.status(400).json({ message: "Invalid" });
 
-    if (!rows.length)
-      return res.status(400).json({ message: "Invalid credentials" })
+  const user = rows[0];
+  const match = await bcrypt.compare(password, user.password);
+  if (!match) return res.status(400).json({ message: "Invalid" });
 
-    const user = rows[0]
-    const match = await bcrypt.compare(password, user.password)
+  const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET);
 
-    if (!match)
-      return res.status(400).json({ message: "Invalid credentials" })
-
-    const token = jwt.sign(
-      { id: user.id },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    )
-
-    res.json({
-      token,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        avatar: user.avatar
-      }
-    })
-  } catch (err) {
-    console.error(err)
-    res.status(500).json({ message: "Server error" })
-  }
-})
+  res.json({
+    token,
+    user: {
+      id: user.id,
+      name: user.username, // 🔥 IMPORTANT FIX
+      email: user.email,
+      avatar: user.avatar,
+      bio: user.bio
+    }
+  });
+});
 
 /* ================= CURRENT USER ================= */
 router.get("/me", authMiddleware, async (req, res) => {
@@ -159,6 +144,38 @@ router.get("/:id", authMiddleware, async (req, res) => {
     console.error(err)
     res.status(500).json({ message: "Server error" })
   }
+})
+
+
+/* UPDATE PROFILE */
+router.put("/profile", authMiddleware, async (req, res) => {
+  try {
+    const { username, bio, avatar } = req.body
+    const userId = req.user.id
+
+    console.log("Updating user:", userId)
+    console.log("Avatar URL:", avatar)
+
+    await db.query(
+      "UPDATE users SET username=?, bio=?, avatar=? WHERE id=?",
+      [username, bio, avatar, userId]
+    )
+
+    res.json({ success: true })
+  } catch (err) {
+    console.log(err)
+    res.status(500).json({ error: "Profile update failed" })
+  }
+})
+
+
+
+
+router.get("/", authMiddleware, async (req, res) => {
+  const [users] = await db.query(
+    "SELECT id, username, email, avatar, bio, last_seen FROM users"
+  )
+  res.json(users)
 })
 
 
