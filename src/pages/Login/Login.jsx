@@ -1,16 +1,15 @@
-import React, { useState, useContext, useRef } from "react"
+import React, { useState, useRef, useContext } from "react"
 import assets from "../../assets/assets"
 import "./Login.css"
 import { toast } from "react-toastify"
-import { AppContext } from "../../context/AppContext"
 import { useNavigate } from "react-router-dom"
 import { loginApi, registerApi } from "../../api/authApi"
+import { AppContext } from "../../context/AppContext"
 
 const Login = () => {
-  const { setUserData } = useContext(AppContext)
   const navigate = useNavigate()
-
-  const requestLock = useRef(false)   // 🔒 HARD LOCK
+  const { setUserData } = useContext(AppContext)
+  const requestLock = useRef(false)
 
   const [currState, setCurrState] = useState("Login")
   const [userName, setUserName] = useState("")
@@ -20,8 +19,6 @@ const Login = () => {
 
   const onSubmitHandler = async (e) => {
     e.preventDefault()
-
-    // 🚫 BLOCK DUPLICATE EXECUTION
     if (requestLock.current) return
 
     requestLock.current = true
@@ -31,24 +28,25 @@ const Login = () => {
       let res
 
       if (currState === "Sign up") {
-        res = await registerApi({
-          username: userName,
-          email,
-          password
-        })
-        toast.success("Account created successfully")
+        res = await registerApi({ username: userName, email, password })
+        toast.success("Account created successfully 🎉")
       } else {
         res = await loginApi({ email, password })
-        toast.success("Login successful")
+        toast.success("Login successful ✅")
       }
 
+      // ✅ Save token
       localStorage.setItem("token", res.data.token)
+
+      // ✅ Set logged user in global context
       setUserData(res.data.user)
 
-      navigate("/chat")
+      // ✅ SPA navigation (no reload)
+      navigate("/chat", { replace: true })
+
     } catch (err) {
       toast.error(err.response?.data?.message || "Authentication failed")
-      requestLock.current = false  // allow retry if real error
+      requestLock.current = false
     } finally {
       setLoading(false)
     }
@@ -91,7 +89,7 @@ const Login = () => {
         />
 
         <button type="submit" disabled={loading}>
-          {loading ? "Please wait..." : "Login"}
+          {loading ? "Please wait..." : currState === "Sign up" ? "Create Account" : "Login"}
         </button>
 
         <div className="login-term">

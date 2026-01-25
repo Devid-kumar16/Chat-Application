@@ -1,121 +1,48 @@
-// backend/routes/chatRoutes.js
-const express = require("express");
-const db = require("../db/db");
+const express = require("express")
+const db = require("../db/db")
 const authMiddleware = require("../middleware/authMiddleware")
-const router = express.Router();
+const router = express.Router()
 
-/* ================= OPEN CHAT ================= */
-router.post("/open", async (req, res) => {
-  const { senderId, receiverId } = req.body;
+/* ================= OPEN OR CREATE CHAT ================= */
+router.post("/open", authMiddleware, async (req, res) => {
+  const senderId = req.user.id
+  const { receiverId } = req.body
 
-  const user1 = Math.min(senderId, receiverId);
-  const user2 = Math.max(senderId, receiverId);
+  if (!receiverId || senderId === receiverId) {
+    return res.status(400).json({ message: "Invalid users" })
+  }
+
+  const user1 = Math.min(senderId, receiverId)
+  const user2 = Math.max(senderId, receiverId)
 
   try {
+    // Check if chat exists
     const [rows] = await db.query(
       "SELECT id FROM chats WHERE user1_id=? AND user2_id=?",
       [user1, user2]
-    );
+    )
 
-    if (rows.length) return res.json({ chatId: rows[0].id });
+    if (rows.length) {
+      return res.json({ chatId: rows[0].id })
+    }
 
+    // Create new chat
     const [result] = await db.query(
       "INSERT INTO chats (user1_id, user2_id) VALUES (?,?)",
       [user1, user2]
-    );
-
-    res.json({ chatId: result.insertId });
-  } catch (err) {
-    res.status(500).json(err);
-  }
-});
-
-/* ================= CREATE CHAT ================= */
-router.post("/create", async (req, res) => {
-  const { user1, user2 } = req.body;
-
-  if (!user1 || !user2 || user1 === user2) {
-    return res.status(400).json({ message: "Invalid users" });
-  }
-
-  try {
-    // ensure both users exist
-    const [[u1]] = await db.query("SELECT id FROM users WHERE id = ?", [user1]);
-    const [[u2]] = await db.query("SELECT id FROM users WHERE id = ?", [user2]);
-
-    if (!u1 || !u2) {
-      return res.status(400).json({ message: "User not found" });
-    }
-
-    // check if chat already exists
-    const [existing] = await db.query(
-      `
-      SELECT * FROM chats
-      WHERE (user1_id = ? AND user2_id = ?)
-         OR (user1_id = ? AND user2_id = ?)
-      `,
-      [user1, user2, user2, user1]
-    );
-
-    if (existing.length) {
-      return res.json(existing[0]);
-    }
-
-    // create chat
-    const [result] = await db.query(
-      "INSERT INTO chats (user1_id, user2_id) VALUES (?, ?)",
-      [user1, user2]
-    );
-
-    res.status(201).json({
-      id: result.insertId,
-      user1_id: user1,
-      user2_id: user2
-    });
-  } catch (err) {
-    console.error("Chat create error:", err);
-    res.status(500).json({ message: "Server error" });
-  }
-});
-
-
-/* ================= GET USER CHATS ================= */
-/* ================= GET USER CHATS ================= */
-router.get("/user/:userId", authMiddleware, async (req, res) => {
-  const { userId } = req.params
-
-  try {
-    const [rows] = await db.query(
-      `
-      SELECT 
-        c.id AS chatId,
-        c.user1_id,
-        c.user2_id,
-        u1.username AS user1_name,
-        u1.avatar AS user1_avatar,
-        u2.username AS user2_name,
-        u2.avatar AS user2_avatar
-      FROM chats c
-      JOIN users u1 ON u1.id = c.user1_id
-      JOIN users u2 ON u2.id = c.user2_id
-      WHERE c.user1_id = ? OR c.user2_id = ?
-      ORDER BY c.created_at DESC
-      `,
-      [userId, userId]
     )
 
-    res.json(rows)
+    res.json({ chatId: result.insertId })
+
   } catch (err) {
-    console.error(err)
+    console.error("Open chat error:", err)
     res.status(500).json({ message: "Server error" })
   }
 })
 
-
-
-/* ================= GET MY CHATS ================= */
+/* ================= GET MY CHATS (MAIN LIST) ================= */
 router.get("/my", authMiddleware, async (req, res) => {
-  const userId = req.user.id;
+  const userId = req.user.id
 
   try {
     const [rows] = await db.query(
@@ -125,13 +52,12 @@ router.get("/my", authMiddleware, async (req, res) => {
         IF(c.user1_id = ?, c.user2_id, c.user1_id) AS rId,
         u.username,
         u.avatar,
+        u.bio,
 
-        -- Last message
         (SELECT text FROM messages 
          WHERE chat_id = c.id 
          ORDER BY created_at DESC LIMIT 1) AS lastMessage,
 
-        -- Unread count
         (SELECT COUNT(*) FROM messages 
          WHERE chat_id = c.id 
            AND receiver_id = ? 
@@ -143,13 +69,35 @@ router.get("/my", authMiddleware, async (req, res) => {
       ORDER BY c.created_at DESC
       `,
       [userId, userId, userId, userId, userId]
-    );
+    )
 
-    res.json(rows);
+    res.json(rows)
   } catch (err) {
-    res.status(500).json(err);
+    console.error("Get chats error:", err)
+    res.status(500).json({ message: "Server error" })
   }
-});
+})
 
+/* ================= GET SINGLE CHAT INFO ================= */
+router.get("/:chatId", authMiddleware, async (req, res) => {
+  const { chatId } = req.params
+  const userId = req.user.id
 
-module.exports = router;
+  try {
+    const [rows] = await db.query(
+      `SELECT * FROM chats WHERE id = ? AND (user1_id = ? OR user2_id = ?)`,
+      [chatId, userId, userId]
+    )
+
+    if (!rows.length) {
+      return res.status(404).json({ message: "Chat not found" })
+    }
+
+    res.json(rows[0])
+  } catch (err) {
+    console.error("Chat fetch error:", err)
+    res.status(500).json({ message: "Server error" })
+  }
+})
+
+module.exports = router

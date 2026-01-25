@@ -1,131 +1,84 @@
 import { createContext, useState, useEffect, useCallback } from "react"
 import axios from "axios"
 
-export const AppContext = createContext(null)
-
+export const AppContext = createContext()
 const SERVER = "http://localhost:5000"
+
+axios.defaults.baseURL = SERVER
+axios.interceptors.request.use(config => {
+  const token = localStorage.getItem("token")
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
 
 const AppContextProvider = ({ children }) => {
   const [userData, setUserData] = useState(null)
   const [users, setUsers] = useState([])
-  const [chatData, setChatData] = useState([])
   const [messagesId, setMessagesId] = useState(null)
-  const [chatUser, setChatUser] = useState(null) // { rId }
+  const [chatUser, setChatUser] = useState(null)
   const [messages, setMessages] = useState([])
   const [chatVisible, setChatVisible] = useState(false)
 
-  const getToken = () => localStorage.getItem("token")
-
-  /* ================= HARD RESET (CRITICAL) ================= */
-  const resetAppState = useCallback(() => {
+  /* ================= RESET ================= */
+  const resetAppState = () => {
     setUserData(null)
     setUsers([])
-    setChatData([])
     setMessagesId(null)
     setChatUser(null)
     setMessages([])
-  }, [])
+    setChatVisible(false)
+  }
 
-  /* ================= LOAD LOGGED USER ================= */
-  const refreshUser = useCallback(async () => {
-    try {
-      const token = getToken()
-      if (!token) return resetAppState()
-
-      const res = await axios.get(`${SERVER}/api/users/me`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-
-      setUserData(res.data)
-
-      // 🔥 Keep users list in sync with latest profile
-      setUsers(prev => {
-        const exists = prev.find(u => u.id === res.data.id)
-        if (!exists) return prev
-        return prev.map(u => u.id === res.data.id ? res.data : u)
-      })
-
-    } catch (err) {
-      console.error("User load error:", err)
+  /* ================= GET LOGGED USER ================= */
+const refreshUser = useCallback(async () => {
+  try {
+    const res = await axios.get("/api/users/me")
+    setUserData(res.data)
+  } catch (err) {
+    // ❌ DO NOT LOGOUT if token exists but request fails
+    if (!localStorage.getItem("token")) {
       resetAppState()
     }
-  }, [resetAppState])
+  }
+}, [])
 
-  /* ================= LOAD ALL USERS ================= */
+
+  /* ================= GET USERS ================= */
   const refreshUsers = useCallback(async () => {
     try {
-      const token = getToken()
-      if (!token) return
+      const res = await axios.get("/api/users")
+      const filtered = res.data.filter(u => u.id !== userData?.id)
+      setUsers(filtered)
+    } catch {}
+  }, [userData?.id])
 
-      const res = await axios.get(`${SERVER}/api/users`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
+  /* ================= FIND USER ================= */
+  const getUserById = (id) => {
+    return users.find(u => u.id === id)
+  }
 
-      setUsers(res.data)
-    } catch (err) {
-      console.error("Users load error:", err)
-    }
-  }, [])
+  /* ================= UPDATE PROFILE ================= */
+  const updateUserInState = (updatedUser) => {
+    setUserData(updatedUser)
+  }
 
-  /* ================= LOAD USER CHATS ================= */
-  const refreshChats = useCallback(async (id) => {
-    try {
-      const token = getToken()
-      if (!token || !id) return
-
-      const res = await axios.get(`${SERVER}/api/chats/user/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-
-      setChatData(res.data)
-    } catch (err) {
-      console.error("Chats load error:", err)
-    }
-  }, [])
-
-  /* ================= APP INIT ================= */
-  useEffect(() => {
-    const token = getToken()
-    if (!token) {
-      resetAppState()
-      return
-    }
-
-    refreshUser()
-    refreshUsers()
-  }, [refreshUser, refreshUsers, resetAppState])
-
-  /* ================= WHEN USER CHANGES ================= */
-  useEffect(() => {
-    if (userData?.id) {
-      refreshChats(userData.id)
-    }
-  }, [userData, refreshChats])
-
-  /* ================= HELPERS ================= */
-  const getUserById = (id) => users.find(u => u.id === id)
+  useEffect(() => { refreshUser() }, [])
+  useEffect(() => { if (userData) refreshUsers() }, [userData])
 
   return (
     <AppContext.Provider value={{
       userData,
-      users,
-      chatData,
-      messagesId,
-      chatUser,
-      messages,
-      chatVisible, 
-            
-      setChatVisible,
       setUserData,
-      setUsers,
-      setMessagesId,
-      setChatUser,
-      setMessages,
-
+      users,
+      messagesId, setMessagesId,
+      chatUser, setChatUser,
+      messages, setMessages,
+      chatVisible, setChatVisible,
       refreshUser,
       refreshUsers,
-      getUserById,
-      resetAppState
+      resetAppState,
+      getUserById,          // 🔥 FIX 1
+      updateUserInState     // 🔥 FIX 2
     }}>
       {children}
     </AppContext.Provider>

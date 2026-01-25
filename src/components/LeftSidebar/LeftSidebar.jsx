@@ -1,81 +1,93 @@
-import React, { useContext, useMemo, useState } from "react"
+import React, { useContext, useState, useEffect, useMemo } from "react"
 import "./LeftSidebar.css"
 import assets from "../../assets/assets"
 import { useNavigate } from "react-router-dom"
 import axios from "axios"
-import socket from "../../socket"
 import { AppContext } from "../../context/AppContext"
+import { searchUsers } from "../../api/userApi"
 
 const SERVER = "http://localhost:5000"
 
 const LeftSidebar = () => {
   const navigate = useNavigate()
-  const { userData, users, setChatUser, setMessagesId, setChatVisible } = useContext(AppContext)
+
+  const {
+    users,
+    userData,
+    setChatUser,
+    setMessagesId,
+    setChatVisible,
+    refreshUsers,
+    resetAppState
+  } = useContext(AppContext)
 
   const [search, setSearch] = useState("")
+  const [searchResults, setSearchResults] = useState([])
   const [menuOpen, setMenuOpen] = useState(false)
 
-  /* ================= LOGOUT (CRITICAL FIX) ================= */
+  /* ================= SAFE USER REFRESH ================= */
+  useEffect(() => {
+    if (userData?.id) refreshUsers()
+  }, [userData?.id])
+
+  /* ================= AVATAR HELPER ================= */
+  const getAvatar = (avatar) => {
+    if (!avatar) return assets.avatar_icon
+    return avatar.startsWith("http")
+      ? `${avatar}?t=${Date.now()}`
+      : `${SERVER}/${avatar}?t=${Date.now()}`
+  }
+
+  /* ================= LOGOUT ================= */
   const handleLogout = () => {
     localStorage.removeItem("token")
-    localStorage.removeItem("user")
-    sessionStorage.clear()
-
-    // 🔥 Disconnect socket to prevent user mix
-    socket.disconnect()
-
-    // 🔥 Hard reset app
-    window.location.replace("/login")
+    resetAppState()
+    navigate("/login")
   }
-
-  /* ================= USERS (single source of truth) ================= */
-  const otherUsers = useMemo(() => {
-    return users.filter(u => u.id !== userData?.id)
-  }, [users, userData])
 
   /* ================= SEARCH ================= */
-  const filteredUsers = useMemo(() => {
-    return otherUsers.filter(u =>
-      (u.username || "").toLowerCase().includes(search.toLowerCase())
-    )
-  }, [otherUsers, search])
+  const handleSearch = async (e) => {
+    const value = e.target.value
+    setSearch(value)
+
+    if (!value.trim()) return setSearchResults([])
+
+    const token = localStorage.getItem("token")
+    const results = await searchUsers(value, token)
+    setSearchResults(results)
+  }
 
   /* ================= OPEN CHAT ================= */
-const openChat = async (user) => {
-  try {
-    const token = localStorage.getItem("token")
+  const openChat = async (user) => {
+    if (!userData) return
 
-    const res = await axios.post(
-      `${SERVER}/api/chats/open`,
-      { senderId: userData.id, receiverId: user.id },
-      { headers: { Authorization: `Bearer ${token}` } }
-    )
+    const res = await axios.post("/api/chats/open", {
+      senderId: userData.id,
+      receiverId: user.id
+    })
 
-    // ✅ 1. Set chat id
     setMessagesId(res.data.chatId)
-
-    // ✅ 2. Set active receiver
     setChatUser({ rId: user.id })
-
-    // ✅ 3. 🔥 SHOW CHAT WINDOW
     setChatVisible(true)
-
-  } catch (err) {
-    console.error("Open chat error:", err)
   }
-}
+
+  /* ================= USERS LIST (NO SELF) ================= */
+  const listToShow = useMemo(() => {
+    if (search) return searchResults
+    return users
+  }, [search, searchResults, users])
 
   return (
     <div className="ls">
       <div className="ls-top">
         <div className="ls-nav">
-          <img src={assets.logo} className="logo" alt="logo" />
+          <img src={assets.logo} className="logo" alt="" />
 
           <div className="menu">
             <img
               src={assets.menu_icon}
-              alt="menu"
-              onClick={() => setMenuOpen(!menuOpen)}
+              onClick={() => setMenuOpen(prev => !prev)}
+              alt=""
             />
 
             {menuOpen && (
@@ -88,45 +100,47 @@ const openChat = async (user) => {
           </div>
         </div>
 
+        {/* ================= LOGGED USER ONLY ================= */}
+        {userData && (
+<div className="ls-profile" onClick={() => navigate("/profile")} style={{cursor:"pointer"}}>
+  <img
+    src={getAvatar(userData?.avatar)}
+    alt="profile"
+    onError={(e) => (e.target.src = assets.avatar_icon)}
+  />
+  <p className="username">{userData?.username}</p>
+</div>
+
+
+        )}
+
         <div className="ls-search">
-          <img src={assets.search_icon} alt="search" />
+          <img src={assets.search_icon} alt="" />
           <input
             placeholder="Search users..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={handleSearch}
           />
         </div>
       </div>
 
-      {/* ================= USER LIST ================= */}
       <div className="ls-list">
-        {filteredUsers.length === 0 ? (
-          <p className="no-users">No users found</p>
-        ) : (
-          filteredUsers.map(user => {
-            const avatar = user.avatar
-              ? user.avatar.startsWith("http")
-                ? user.avatar
-                : `${SERVER}/${user.avatar}`
-              : assets.avatar_icon
-
-            return (
-              <div
-                key={user.id}
-                className="friends"
-                onClick={() => openChat(user)}
-              >
-<img
-  src={`${avatar}?v=${user.updated_at || Date.now()}`}
-  alt="avatar"
-  onError={(e) => (e.target.src = assets.avatar_icon)}
-/>
-
-                <p>{user.username}</p>
-              </div>
-            )
-          })
-        )}
+        {listToShow.map(user => (
+          <div
+            key={`user-${user.id}`}
+            className="friends"
+            onClick={() => openChat(user)}
+          >
+            <div className="friend-avatar">
+              <img
+                key={`avatar-${user.id}-${user.avatar}`}
+                src={getAvatar(user.avatar)}
+                alt=""
+              />
+            </div>
+            <p>{user.username}</p>
+          </div>
+        ))}
       </div>
     </div>
   )

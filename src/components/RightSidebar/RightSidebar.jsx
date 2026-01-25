@@ -1,80 +1,76 @@
-import React, { useEffect, useContext, useState } from "react"
+import React, { useEffect, useContext, useState, useMemo } from "react"
 import "./RightSidebar.css"
 import assets from "../../assets/assets"
 import { useNavigate } from "react-router-dom"
-import socket from "../../socket"
 import { AppContext } from "../../context/AppContext"
+import { getSocket } from "../../socket"
 
 const SERVER = "http://localhost:5000"
 
 const RightSidebar = () => {
   const navigate = useNavigate()
-
-  // ✅ FIX: get users also
-  const { chatUser, messages, userData, users, getUserById } = useContext(AppContext)
-
+  const { users, chatUser, messages, resetAppState } = useContext(AppContext)
   const [media, setMedia] = useState([])
 
-  /* ================= SAFE LOGOUT ================= */
+  /* ================= SAFE ACTIVE USER ================= */
+const activeUser = useMemo(() => {
+  if (!chatUser?.rId) return null
+  return users.find(u => u.id === chatUser.rId)
+}, [chatUser?.rId, users])
+
+
+  /* ================= COLLECT MEDIA ================= */
+  useEffect(() => {
+    if (!Array.isArray(messages)) return setMedia([])
+
+    setMedia(
+      messages
+        .filter(m => m.media && m.media.trim() !== "")
+        .map(m => m.media)
+    )
+  }, [messages])
+
+  /* ================= LOGOUT ================= */
   const handleLogout = () => {
+    const socket = getSocket()
+    socket?.disconnect()
     localStorage.removeItem("token")
-    localStorage.removeItem("user")
-    sessionStorage.clear()
-    socket.disconnect()
-    window.location.replace("/login")
+    resetAppState()
+    navigate("/login")
   }
 
-  /* ================= ACTIVE CHAT USER ================= */
-  const activeUser = chatUser?.rId
-    ? getUserById(chatUser.rId) || users.find(u => u.id === chatUser.rId)
-    : null
-
-  /* ================= LOAD MEDIA ================= */
-  useEffect(() => {
-    if (!Array.isArray(messages)) {
-      setMedia([])
-      return
-    }
-
-    const files = messages
-      .filter(m => m.media && m.media.trim() !== "")
-      .map(m => m.media)
-
-    setMedia(files)
-  }, [messages])
+  /* ================= AVATAR HELPER ================= */
+  const getAvatar = (avatar) => {
+    if (!avatar) return assets.profile_img
+    return avatar.startsWith("http")
+      ? `${avatar}?v=${Date.now()}`
+      : `${SERVER}/${avatar}?v=${Date.now()}`
+  }
 
   /* ================= NO CHAT SELECTED ================= */
   if (!activeUser) {
     return (
       <div className="rs">
+        <div className="rs-empty">
+          {/* <img src={assets.profile_img} alt="" />
+          <p>Select a chat to see user info</p> */}
+        </div>
         <button onClick={handleLogout}>Logout</button>
       </div>
     )
   }
 
-  /* ================= AVATAR FIX ================= */
-  const avatarUrl = activeUser.avatar
-    ? activeUser.avatar.startsWith("http")
-      ? activeUser.avatar
-      : `${SERVER}/${activeUser.avatar}`
-    : assets.profile_img
-
+  /* ================= MAIN UI ================= */
   return (
     <div className="rs">
+<div className="rs-profile">
+  <div className="rs-avatar">
+    <img src={getAvatar(activeUser.avatar)} alt="profile" />
+  </div>
+  <h3>{activeUser.username}</h3>
+  <p>{activeUser.bio || "Hey there 👋"}</p>
+</div>
 
-      <div
-        className="rs-profile"
-        onClick={() => navigate("/profile")}
-        style={{ cursor: "pointer" }}
-      >
-<img
-  src={`${avatarUrl}?v=${activeUser?.updated_at || Date.now()}`}
-  alt="profile"
-  onError={(e) => (e.target.src = assets.profile_img)}
-/>
-        <h3>{activeUser.username}</h3>
-        <p>{activeUser.bio || "Hey there!"}</p>
-      </div>
 
       <hr />
 
@@ -86,10 +82,9 @@ const RightSidebar = () => {
           ) : (
             media.map((url, i) => {
               const fullUrl = url.startsWith("http") ? url : `${SERVER}/${url}`
-
               return (
                 <img
-                  key={i}
+                  key={`media-${i}`}
                   src={fullUrl}
                   alt="media"
                   onClick={() => window.open(fullUrl)}

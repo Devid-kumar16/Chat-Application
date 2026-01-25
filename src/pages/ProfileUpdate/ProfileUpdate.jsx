@@ -11,63 +11,54 @@ const SERVER = "http://localhost:5000"
 
 const ProfileUpdate = () => {
   const navigate = useNavigate()
-  const { userData, refreshUser, refreshUsers } = useContext(AppContext)
+  const { userData, updateUserInState } = useContext(AppContext)
 
   const [image, setImage] = useState(null)
   const [name, setName] = useState("")
   const [bio, setBio] = useState("")
   const [prevImage, setPrevImage] = useState("")
 
-  /* LOAD USER DATA INTO FORM */
   useEffect(() => {
-    if (userData) {
-      setName(userData.username || "")
-      setBio(userData.bio || "")
-      setPrevImage(userData.avatar || "")
-    }
+    if (!userData) return
+    setName(userData.username || "")
+    setBio(userData.bio || "")
+    setPrevImage(userData.avatar || "")
   }, [userData])
 
-  /* ================= UPDATE PROFILE ================= */
   const profileUpdate = async (e) => {
     e.preventDefault()
 
     try {
-      let avatarUrl = prevImage
+      let avatarPath = prevImage
 
-      /* UPLOAD NEW IMAGE */
+      // upload new image if selected
       if (image) {
-        const res = await upload(image) // returns { fileUrl }
-        avatarUrl = res.fileUrl
+        avatarPath = await upload(image)
       }
 
-      const token = localStorage.getItem("token")
+      const res = await axios.put("/api/users/profile", {
+        username: name,
+        bio,
+        avatar: avatarPath
+      })
 
-      await axios.put(
-        `${SERVER}/api/users/profile`,
-        { username: name, bio, avatar: avatarUrl },
-        { headers: { Authorization: `Bearer ${token}` } }
-      )
+      // 🔥 Update context WITHOUT refetch
+      updateUserInState(res.data.user)
 
-      /* 🔥 REFRESH GLOBAL DATA (THIS FIXES SIDEBAR + CHAT HEADER) */
-      await refreshUser()
-      await refreshUsers()
-
-      toast.success("Profile updated successfully")
+      toast.success("Profile updated")
       navigate("/chat")
 
     } catch (err) {
-      console.error(err)
       toast.error("Profile update failed")
     }
   }
 
-  /* ================= AVATAR PREVIEW ================= */
   const previewAvatar = image
     ? URL.createObjectURL(image)
     : prevImage
       ? prevImage.startsWith("http")
-        ? `${prevImage}?t=${Date.now()}`
-        : `${SERVER}/${prevImage}?t=${Date.now()}`
+        ? prevImage
+        : `${SERVER}/${prevImage}`
       : assets.avatar_icon
 
   return (
@@ -76,7 +67,6 @@ const ProfileUpdate = () => {
         <form onSubmit={profileUpdate}>
           <h3>Profile Details</h3>
 
-          {/* ===== Avatar Upload ===== */}
           <label htmlFor="avatarInput" className="avatar-label">
             <img src={previewAvatar} alt="avatar" />
           </label>
@@ -89,7 +79,6 @@ const ProfileUpdate = () => {
             onChange={(e) => setImage(e.target.files[0])}
           />
 
-          {/* ===== Name ===== */}
           <input
             type="text"
             value={name}
@@ -98,7 +87,6 @@ const ProfileUpdate = () => {
             required
           />
 
-          {/* ===== Bio ===== */}
           <textarea
             value={bio}
             onChange={(e) => setBio(e.target.value)}

@@ -1,5 +1,3 @@
-// backend/server.js
-
 const express = require("express")
 const cors = require("cors")
 const http = require("http")
@@ -10,14 +8,15 @@ require("dotenv").config()
 const userRoutes = require("./routes/userRoutes")
 const messageRoutes = require("./routes/messageRoutes")
 const chatRoutes = require("./routes/chatRoutes")
+const uploadRoutes = require("./routes/uploadRoutes")
 
 // ================= APP & SERVER =================
 const app = express()
 const server = http.createServer(app)
 
-// ================= CORS CONFIG =================
+// ================= CORS =================
 const corsOptions = {
-  origin: "http://localhost:5173", // ✅ Vite frontend
+  origin: "http://localhost:5173",
   methods: ["GET", "POST", "PUT", "DELETE"],
   credentials: true
 }
@@ -28,40 +27,48 @@ app.use(express.json())
 // ================= SOCKET.IO =================
 const io = new Server(server, {
   cors: corsOptions,
-  transports: ["websocket"] // ✅ avoids polling issues
+  transports: ["websocket"]
 })
 
-// Make io accessible if needed later
 app.set("io", io)
 
 // ================= API ROUTES =================
 app.use("/api/users", userRoutes)
 app.use("/api/messages", messageRoutes)
 app.use("/api/chats", chatRoutes)
-const uploadRoutes = require("./routes/uploadRoutes")
-
 app.use("/api/upload", uploadRoutes)
 app.use("/uploads", express.static("uploads"))
 
 // ================= SOCKET EVENTS =================
 io.on("connection", (socket) => {
-  console.log("🔌 Socket connected:", socket.id)
+  console.log("🟢 Socket connected:", socket.id)
 
-  // Join a chat room
-  socket.on("join-chat", (chatId) => {
+  // Join chat room
+socket.on("join-chat", ({ chatId }) => {
+  if (!chatId) return
+  socket.join(`chat_${chatId}`)
+})
+
+
+  // Leave chat room
+  socket.on("leave-chat", (chatId) => {
     if (!chatId) return
-    socket.join(`chat_${chatId}`)
-    console.log(`📥 Joined chat_${chatId}`)
+    const room = `chat_${chatId}`
+    socket.leave(room)
+    console.log(`📤 Left ${room}`)
   })
 
-  // Relay message to other users in the room
+  // Broadcast message to room
   socket.on("send-message", ({ chatId, message }) => {
     if (!chatId || !message) return
-    socket.to(`chat_${chatId}`).emit("receive-message", message)
+    const room = `chat_${chatId}`
+
+    console.log(`📨 Message in ${room}`)
+    socket.to(room).emit("receive-message", message)
   })
 
   socket.on("disconnect", () => {
-    console.log("❌ Socket disconnected:", socket.id)
+    console.log("🔴 Socket disconnected:", socket.id)
   })
 })
 
