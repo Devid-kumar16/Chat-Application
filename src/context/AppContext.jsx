@@ -1,5 +1,6 @@
 import { createContext, useState, useEffect, useCallback } from "react"
 import axios from "axios"
+import { connectSocket, getSocket } from "../socket"
 
 export const AppContext = createContext()
 const SERVER = "http://localhost:5000"
@@ -12,14 +13,16 @@ axios.interceptors.request.use(config => {
 })
 
 const AppContextProvider = ({ children }) => {
+
   const [userData, setUserData] = useState(null)
   const [users, setUsers] = useState([])
-  const [messagesId, setMessagesId] = useState(null)
   const [chatUser, setChatUser] = useState(null)
+  const [messagesId, setMessagesId] = useState(null)
   const [messages, setMessages] = useState([])
   const [chatVisible, setChatVisible] = useState(false)
+  const [lastMessages, setLastMessages] = useState({})
+  const [onlineUsers, setOnlineUsers] = useState([])
 
-  /* ================= RESET ================= */
   const resetAppState = () => {
     setUserData(null)
     setUsers([])
@@ -27,37 +30,57 @@ const AppContextProvider = ({ children }) => {
     setChatUser(null)
     setMessages([])
     setChatVisible(false)
+    setLastMessages({})
+    setOnlineUsers([])
   }
 
-  /* ================= GET LOGGED USER ================= */
-const refreshUser = useCallback(async () => {
-  try {
-    const res = await axios.get("/api/users/me")
-    setUserData(res.data)
-  } catch (err) {
-    // ❌ DO NOT LOGOUT if token exists but request fails
-    if (!localStorage.getItem("token")) {
-      resetAppState()
+  /* ================= LOAD AUTH USER ================= */
+  const refreshUser = useCallback(async () => {
+    try {
+      const res = await axios.get("/api/users/me")
+      setUserData(res.data)
+    } catch {
+      if (!localStorage.getItem("token")) resetAppState()
     }
-  }
-}, [])
+  }, [])
 
-
-  /* ================= GET USERS ================= */
+  /* ================= LOAD USERS ================= */
   const refreshUsers = useCallback(async () => {
     try {
       const res = await axios.get("/api/users")
-      const filtered = res.data.filter(u => u.id !== userData?.id)
-      setUsers(filtered)
+      setUsers(res.data.filter(u => u.id !== userData?.id))
     } catch {}
   }, [userData?.id])
 
-  /* ================= FIND USER ================= */
-  const getUserById = (id) => {
-    return users.find(u => u.id === id)
-  }
+  /* ================= TRACK LAST MESSAGE ================= */
+  useEffect(() => {
+    if (!chatUser || !messages.length) return
+    const lastMsg = messages[messages.length - 1]
+    setLastMessages(prev => ({ ...prev, [chatUser.id]: lastMsg }))
+  }, [messages, chatUser])
 
-  /* ================= UPDATE PROFILE ================= */
+  /* ===================================================
+     🟢 SOCKET + ONLINE USERS (FIXED)
+  =================================================== */
+  useEffect(() => {
+    if (!userData?.id) return
+
+    // 1️⃣ Ensure socket exists
+    const socket = connectSocket(userData.id)
+
+    // 2️⃣ Tell server user is online
+    socket.emit("user-online", userData.id)
+
+    // 3️⃣ Listen to online list
+    const handleOnline = (ids) => {
+      setOnlineUsers(ids)
+    }
+
+    socket.on("online-users", handleOnline)
+
+    return () => socket.off("online-users", handleOnline)
+  }, [userData?.id])
+
   const updateUserInState = (updatedUser) => {
     setUserData(updatedUser)
   }
@@ -67,18 +90,16 @@ const refreshUser = useCallback(async () => {
 
   return (
     <AppContext.Provider value={{
-      userData,
-      setUserData,
-      users,
-      messagesId, setMessagesId,
+      userData, setUserData, updateUserInState,
+      users, refreshUsers,
       chatUser, setChatUser,
+      messagesId, setMessagesId,
       messages, setMessages,
       chatVisible, setChatVisible,
+      lastMessages,
+      onlineUsers,
       refreshUser,
-      refreshUsers,
-      resetAppState,
-      getUserById,          // 🔥 FIX 1
-      updateUserInState     // 🔥 FIX 2
+      resetAppState
     }}>
       {children}
     </AppContext.Provider>

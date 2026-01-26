@@ -9,15 +9,11 @@ const SERVER = "http://localhost:5000"
 
 const RightSidebar = () => {
   const navigate = useNavigate()
-  const { users, chatUser, messages, resetAppState } = useContext(AppContext)
+  const { chatUser, messages, resetAppState } = useContext(AppContext)
   const [media, setMedia] = useState([])
 
-  /* ================= SAFE ACTIVE USER ================= */
-const activeUser = useMemo(() => {
-  if (!chatUser?.rId) return null
-  return users.find(u => u.id === chatUser.rId)
-}, [chatUser?.rId, users])
-
+  /* ================= STABLE USER (prevents flicker) ================= */
+  const activeUser = useMemo(() => chatUser || null, [chatUser])
 
   /* ================= COLLECT MEDIA ================= */
   useEffect(() => {
@@ -39,22 +35,21 @@ const activeUser = useMemo(() => {
     navigate("/login")
   }
 
-  /* ================= AVATAR HELPER ================= */
+  /* ================= AVATAR HELPER (FIXED) ================= */
   const getAvatar = (avatar) => {
     if (!avatar) return assets.profile_img
+
+    // DO NOT append Date.now() → causes constant reload
     return avatar.startsWith("http")
-      ? `${avatar}?v=${Date.now()}`
-      : `${SERVER}/${avatar}?v=${Date.now()}`
+      ? avatar
+      : `${SERVER}/${avatar}`
   }
 
   /* ================= NO CHAT SELECTED ================= */
   if (!activeUser) {
     return (
       <div className="rs">
-        <div className="rs-empty">
-          {/* <img src={assets.profile_img} alt="" />
-          <p>Select a chat to see user info</p> */}
-        </div>
+        <div className="rs-empty"></div>
         <button onClick={handleLogout}>Logout</button>
       </div>
     )
@@ -63,14 +58,19 @@ const activeUser = useMemo(() => {
   /* ================= MAIN UI ================= */
   return (
     <div className="rs">
-<div className="rs-profile">
-  <div className="rs-avatar">
-    <img src={getAvatar(activeUser.avatar)} alt="profile" />
-  </div>
-  <h3>{activeUser.username}</h3>
-  <p>{activeUser.bio || "Hey there 👋"}</p>
-</div>
 
+      <div className="rs-profile">
+        <div className="rs-avatar">
+          <img
+            key={activeUser.id}   // ensures React swaps image when user changes
+            src={getAvatar(activeUser.avatar)}
+            alt="profile"
+            onError={(e) => (e.target.src = assets.profile_img)}
+          />
+        </div>
+        <h3>{activeUser.username}</h3>
+        <p>{activeUser.bio || "Hey there 👋"}</p>
+      </div>
 
       <hr />
 

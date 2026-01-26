@@ -39,18 +39,35 @@ app.use("/api/chats", chatRoutes)
 app.use("/api/upload", uploadRoutes)
 app.use("/uploads", express.static("uploads"))
 
-// ================= SOCKET EVENTS =================
+/* ===================================================
+   🔥 ONLINE USERS TRACKING
+=================================================== */
+let onlineUsers = []
+
 io.on("connection", (socket) => {
   console.log("🟢 Socket connected:", socket.id)
 
-  // Join chat room
-socket.on("join-chat", ({ chatId }) => {
-  if (!chatId) return
-  socket.join(`chat_${chatId}`)
-})
+  /* ===== USER COMES ONLINE ===== */
+  socket.on("user-online", (userId) => {
+    socket.userId = userId
 
+    if (!onlineUsers.includes(userId)) {
+      onlineUsers.push(userId)
+    }
 
-  // Leave chat room
+    io.emit("online-users", onlineUsers)
+    console.log("🟢 Online Users:", onlineUsers)
+  })
+
+  /* ===== JOIN CHAT ROOM ===== */
+  socket.on("join-chat", ({ chatId }) => {
+    if (!chatId) return
+    const room = `chat_${chatId}`
+    socket.join(room)
+    console.log(`📥 Joined ${room}`)
+  })
+
+  /* ===== LEAVE CHAT ROOM ===== */
   socket.on("leave-chat", (chatId) => {
     if (!chatId) return
     const room = `chat_${chatId}`
@@ -58,17 +75,22 @@ socket.on("join-chat", ({ chatId }) => {
     console.log(`📤 Left ${room}`)
   })
 
-  // Broadcast message to room
+  /* ===== SEND MESSAGE ===== */
   socket.on("send-message", ({ chatId, message }) => {
     if (!chatId || !message) return
     const room = `chat_${chatId}`
-
-    console.log(`📨 Message in ${room}`)
     socket.to(room).emit("receive-message", message)
   })
 
+  /* ===== USER DISCONNECT ===== */
   socket.on("disconnect", () => {
     console.log("🔴 Socket disconnected:", socket.id)
+
+    if (socket.userId) {
+      onlineUsers = onlineUsers.filter(id => id !== socket.userId)
+      io.emit("online-users", onlineUsers)
+      console.log("🟡 Online Users:", onlineUsers)
+    }
   })
 })
 
@@ -76,5 +98,5 @@ socket.on("join-chat", ({ chatId }) => {
 const PORT = process.env.PORT || 5000
 
 server.listen(PORT, () => {
-  console.log(`🚀 Backend running on http://localhost:${PORT}`)
+  console.log(` Backend running on http://localhost:${PORT}`)
 })

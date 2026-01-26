@@ -33,24 +33,61 @@
     border-color: #ffffff50;
     margin: 15px 0px;
 }
+/* ================= MEDIA SECTION ================= */
 .rs-media {
-  flex: 1;
-  padding: 0 20px;
+  padding: 10px 0;
+}
+
+.rs-media p {
+  font-weight: 600;
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
+/* 🔥 PROFESSIONAL GRID */
+.rs-media-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr); /* 3 per row */
+  gap: 8px;
+  max-height: 220px;
   overflow-y: auto;
+  padding-right: 4px;
 }
-.rs-media div{
-    max-height: 180px;
-    overflow-y: scroll;
-    display: flex;
-    gap: 5px;
-    grid-template-columns: 1fr 1fr 1fr;
-    margin-top: 8px;
+
+/* Scrollbar styling */
+.rs-media-grid::-webkit-scrollbar {
+  width: 6px;
 }
-.rs-media div img{
-    width: 60px;
-    border-radius: 4px;
-    cursor: pointer;
+
+.rs-media-grid::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.2);
+  border-radius: 6px;
 }
+
+/* Image styling */
+.rs-media-grid img {
+  width: 100%;
+  aspect-ratio: 1 / 1;   /* perfect square */
+  object-fit: cover;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Hover effect */
+.rs-media-grid img:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+}
+
+/* No media text */
+.no-media {
+  grid-column: span 3;
+  text-align: center;
+  font-size: 13px;
+  color: #ccc;
+}
+
 .rs button {
   margin: 20px auto;
   background: #077eff;

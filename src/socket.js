@@ -1,6 +1,6 @@
 import { io } from "socket.io-client"
 
-let socket
+let socket = null
 
 export const connectSocket = (userId) => {
   if (!socket) {
@@ -10,10 +10,17 @@ export const connectSocket = (userId) => {
     })
 
     socket.on("connect", () => {
-      console.log("Socket connected:", socket.id)
-      socket.emit("user-connected", userId)
+      console.log("🟢 Socket connected:", socket.id)
+
+      // 🔥 CORRECT EVENT NAME
+      socket.emit("user-online", userId)
+    })
+
+    socket.on("disconnect", () => {
+      console.log("🔴 Socket disconnected")
     })
   }
+
   return socket
 }
 

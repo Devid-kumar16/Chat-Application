@@ -1,5 +1,7 @@
 import avatar_icon from './avatar_icon.png'
 import gallery_icon from './gallery_icon.png'
+import emoji_icon from "./emoji.png"
+
 import help_icon from './help_icon.png'
 import logo_icon from './logo_icon.png'
 import logo_big from './logo_big.png'
@@ -19,6 +21,7 @@ import green_dot from './green_dot.png'
 const assets = {
     avatar_icon,
     gallery_icon,
+    emoji_icon,
     help_icon,
     logo_big,
     logo_icon,
@@ -33,7 +36,7 @@ const assets = {
     add_icon,
     menu_icon,
     arrow_icon,
-    green_dot
+    green_dot,
 }
 
 export default assets;

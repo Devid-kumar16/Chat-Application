@@ -1,4 +1,4 @@
-import React, { useEffect, useContext, useState, useRef, useMemo } from "react"
+import React, { useEffect, useContext, useState, useRef } from "react"
 import "./ChatBox.css"
 import assets from "../../assets/assets"
 import { AppContext } from "../../context/AppContext"
@@ -6,57 +6,58 @@ import upload from "../../lib/upload"
 import { toast } from "react-toastify"
 import EmojiPicker from "emoji-picker-react"
 import { sendMessageApi, getMessagesApi } from "../../api/messageApi"
-import { connectSocket, getSocket } from "../../socket"
+import { getSocket } from "../../socket"
 
 const SERVER = "http://localhost:5000"
 
 const ChatBox = () => {
   const {
     userData,
-    users,
     messagesId,
     chatUser,
     messages = [],
     setMessages,
     chatVisible,
-    setChatVisible
+    setChatVisible,
+    onlineUsers
   } = useContext(AppContext)
 
   const [input, setInput] = useState("")
   const [showEmoji, setShowEmoji] = useState(false)
   const endRef = useRef(null)
+  const pickerRef = useRef(null)
+  const inputRef = useRef(null)
 
-  /* ================= CONNECT SOCKET (ONCE) ================= */
+
+
+  const isOnline = chatUser && onlineUsers.includes(chatUser.id)
+
+  /* CLEAR MESSAGES WHEN CHAT CHANGES */
   useEffect(() => {
-    if (userData?.id) connectSocket(userData.id)
-  }, [userData?.id])
+    setMessages([])
+  }, [messagesId])
 
-  /* ================= ACTIVE CHAT USER ================= */
-  const activeChatUser = useMemo(() => {
-    if (!chatUser?.rId || !Array.isArray(users)) return null
-    return users.find(u => u.id === chatUser.rId) || null
-  }, [chatUser?.rId, users])
-
-  const avatarUrl = activeChatUser?.avatar
-    ? activeChatUser.avatar.startsWith("http")
-      ? activeChatUser.avatar
-      : `${SERVER}/${activeChatUser.avatar}`
+  /* AVATAR */
+  const avatarUrl = chatUser?.avatar
+    ? chatUser.avatar.startsWith("http")
+      ? chatUser.avatar
+      : `${SERVER}/${chatUser.avatar}`
     : assets.avatar_icon
 
-  /* ================= AUTO SCROLL ================= */
+  /* AUTO SCROLL */
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
-  /* ================= LOAD MESSAGES ================= */
+  /* LOAD MESSAGES */
   useEffect(() => {
     if (!messagesId) return
     getMessagesApi(messagesId)
       .then(res => setMessages(res.data || []))
       .catch(() => toast.error("Failed to load messages"))
-  }, [messagesId, setMessages])
+  }, [messagesId])
 
-  /* ================= SOCKET LISTENER ================= */
+  /* SOCKET LISTENER */
   useEffect(() => {
     const socket = getSocket()
     if (!socket || !messagesId) return
@@ -70,12 +71,29 @@ const ChatBox = () => {
     }
 
     socket.on("receive-message", handleIncoming)
-    return () => socket.off("receive-message", handleIncoming)
-  }, [messagesId, setMessages])
 
-  /* ================= SEND TEXT ================= */
+    return () => {
+      socket.emit("leave-chat", messagesId)
+      socket.off("receive-message", handleIncoming)
+    }
+  }, [messagesId])
+
+  useEffect(() => {
+  const handleClickOutside = (event) => {
+    if (pickerRef.current && !pickerRef.current.contains(event.target)) {
+      setShowEmoji(false)
+    }
+  }
+
+  document.addEventListener("mousedown", handleClickOutside)
+  return () => document.removeEventListener("mousedown", handleClickOutside)
+}, [])
+
+
+
+  /* SEND TEXT */
   const sendMessage = async () => {
-    if (!input.trim() || !messagesId || !userData) return
+    if (!input.trim() || !messagesId || !userData || !chatUser) return
 
     const tempId = Date.now()
     const optimisticMsg = {
@@ -92,7 +110,7 @@ const ChatBox = () => {
       const res = await sendMessageApi({
         chatId: messagesId,
         senderId: userData.id,
-        receiverId: chatUser.rId,
+        receiverId: chatUser.id,
         text: optimisticMsg.text
       })
 
@@ -106,10 +124,10 @@ const ChatBox = () => {
     }
   }
 
-  /* ================= SEND MEDIA ================= */
+  /* SEND MEDIA */
   const sendMedia = async (e) => {
     const file = e.target.files[0]
-    if (!file) return
+    if (!file || !chatUser) return
 
     try {
       const url = await upload(file)
@@ -118,7 +136,7 @@ const ChatBox = () => {
       const res = await sendMessageApi({
         chatId: messagesId,
         senderId: userData.id,
-        receiverId: chatUser.rId,
+        receiverId: chatUser.id,
         media: url,
         mediaType: type
       })
@@ -135,8 +153,7 @@ const ChatBox = () => {
     return isNaN(date) ? "" : date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
   }
 
-  /* ================= SAFE RENDER ================= */
-  if (!chatUser || !activeChatUser || !userData) {
+  if (!chatUser || !userData) {
     return (
       <div className="chat-welcome">
         <img src={assets.logo_icon} alt="" />
@@ -147,12 +164,18 @@ const ChatBox = () => {
 
   return (
     <div className={`chat-box ${chatVisible ? "" : "hidden"}`}>
+
+      {/* HEADER */}
       <div className="chat-user">
         <img src={avatarUrl} alt="" />
-        <p>{activeChatUser.username}</p>
+        <p className="chat-name">
+          {chatUser.username}
+          {isOnline && <span className="online-dot"></span>}
+        </p>
         <img src={assets.arrow_icon} className="arrow" onClick={() => setChatVisible(false)} alt="" />
       </div>
 
+      {/* MESSAGES */}
       <div className="chat-msg">
         {messages.map((msg) => (
           <div key={msg.id} className={msg.sender_id === userData.id ? "s-msg" : "r-msg"}>
@@ -166,18 +189,36 @@ const ChatBox = () => {
         <div ref={endRef} />
       </div>
 
+      {/* INPUT AREA */}
       <div className="chat-input">
-        <img src={assets.emoji_icon} onClick={() => setShowEmoji(!showEmoji)} alt="" />
-        <input
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          placeholder="Send a message..."
-          onKeyDown={e => e.key === "Enter" && sendMessage()}
-        />
+
+        {/* ✅ EMOJI BUTTON */}
+<img
+  src={assets.emoji_icon}
+  alt="emoji"
+  className="emoji-btn"
+  onClick={() => setShowEmoji(!showEmoji)}
+/>
+
+
+<input
+  ref={inputRef}
+  value={input}
+  onChange={e => setInput(e.target.value)}
+  placeholder="Send a message..."
+  onKeyDown={e => e.key === "Enter" && sendMessage()}
+/>
+
 
         {showEmoji && (
-          <div className="emoji-picker">
-            <EmojiPicker onEmojiClick={e => setInput(p => p + e.emoji)} />
+          <div ref={pickerRef} className="emoji-picker">
+<EmojiPicker
+  onEmojiClick={(emojiData) => {
+    setInput(prev => prev + emojiData.emoji)
+    inputRef.current?.focus()
+  }}
+/>
+
           </div>
         )}
 

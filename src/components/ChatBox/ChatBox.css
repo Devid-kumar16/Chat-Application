@@ -233,14 +233,6 @@
   opacity: 1;
 }
 
-/* Emoji picker */
-.emoji-picker {
-  position: absolute;
-  bottom: 65px;
-  left: 10px;
-  z-index: 9999;
-}
-
 /* Ensure icons visible */
 .chat-input label img {
   display: block;
@@ -257,9 +249,77 @@
   position: relative;
 }
 
+.online-dot {
+  width: 8px;
+  height: 8px;
+  background: #00ff00;
+  border-radius: 50%;
+  display: inline-block;
+  margin-left: 6px;
+}
+
+
+.invoice-card {
+  background: #f5f5f5;
+  padding: 10px;
+  border-radius: 8px;
+  margin-bottom: 5px;
+}
+
+
+.chat-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.online-dot {
+  width: 10px;
+  height: 10px;
+  background: #22c55e;
+  border-radius: 50%;
+  box-shadow: 0 0 6px #22c55e;
+}
+
+.chat-input {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  position: relative;
+}
+
+
 .emoji-picker {
   position: absolute;
-  bottom: 70px;
-  left: 20px;
+  bottom: 65px;
+  left: 10px;
+  z-index: 9999;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+
+.emoji-btn {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  cursor: pointer;
+}
+
+
+/* Fix emoji picker layout */
+.emoji-picker {
+  position: absolute;
+  bottom: 65px;
+  left: 10px;
   z-index: 9999;
 }
+
+/* Override internal emoji styles safely */
+.EmojiPickerReact {
+  --epr-search-input-height: 36px;
+  --epr-search-border-radius: 8px;
+  --epr-search-input-padding: 0 12px;
+  font-family: inherit;
+}
+
+

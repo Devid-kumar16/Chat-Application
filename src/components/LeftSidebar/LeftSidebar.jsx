@@ -18,7 +18,8 @@ const LeftSidebar = () => {
     setMessagesId,
     setChatVisible,
     refreshUsers,
-    resetAppState
+    resetAppState,
+    lastMessages
   } = useContext(AppContext)
 
   const [search, setSearch] = useState("")
@@ -34,8 +35,8 @@ const LeftSidebar = () => {
   const getAvatar = (avatar) => {
     if (!avatar) return assets.avatar_icon
     return avatar.startsWith("http")
-      ? `${avatar}?t=${Date.now()}`
-      : `${SERVER}/${avatar}?t=${Date.now()}`
+      ? avatar
+      : `${SERVER}/${avatar}`
   }
 
   /* ================= LOGOUT ================= */
@@ -67,11 +68,11 @@ const LeftSidebar = () => {
     })
 
     setMessagesId(res.data.chatId)
-    setChatUser({ rId: user.id })
+    setChatUser(user)      // full object
     setChatVisible(true)
   }
 
-  /* ================= USERS LIST (NO SELF) ================= */
+  /* ================= USERS LIST ================= */
   const listToShow = useMemo(() => {
     if (search) return searchResults
     return users
@@ -100,18 +101,20 @@ const LeftSidebar = () => {
           </div>
         </div>
 
-        {/* ================= LOGGED USER ONLY ================= */}
+        {/* ================= LOGGED USER PROFILE ================= */}
         {userData && (
-<div className="ls-profile" onClick={() => navigate("/profile")} style={{cursor:"pointer"}}>
-  <img
-    src={getAvatar(userData?.avatar)}
-    alt="profile"
-    onError={(e) => (e.target.src = assets.avatar_icon)}
-  />
-  <p className="username">{userData?.username}</p>
-</div>
-
-
+          <div
+            className="ls-profile"
+            onClick={() => navigate("/profile")}
+            style={{ cursor: "pointer" }}
+          >
+            <img
+              src={getAvatar(userData.avatar)}
+              alt="profile"
+              onError={(e) => (e.target.src = assets.avatar_icon)}
+            />
+            <p className="username">{userData.username}</p>
+          </div>
         )}
 
         <div className="ls-search">
@@ -124,23 +127,39 @@ const LeftSidebar = () => {
         </div>
       </div>
 
+      {/* ================= CHAT USERS LIST ================= */}
       <div className="ls-list">
-        {listToShow.map(user => (
-          <div
-            key={`user-${user.id}`}
-            className="friends"
-            onClick={() => openChat(user)}
-          >
-            <div className="friend-avatar">
-              <img
-                key={`avatar-${user.id}-${user.avatar}`}
-                src={getAvatar(user.avatar)}
-                alt=""
-              />
+        {listToShow.map(user => {
+          const lastMsg = lastMessages[user.id]
+
+          return (
+            <div
+              key={`user-${user.id}`}
+              className="friends"
+              onClick={() => openChat(user)}
+            >
+              <div className="friend-avatar">
+                <img src={getAvatar(user.avatar)} alt="" />
+              </div>
+
+              <div className="friend-info">
+                <p className="friend-name">{user.username}</p>
+<span className="last-msg">
+  {lastMsg
+    ? lastMsg.text
+      ? lastMsg.text
+      : lastMsg.media_type === "image"
+        ? "📷 Image"
+        : lastMsg.media_type === "file"
+          ? "📎 File"
+          : ""
+    : ""}
+</span>
+
+              </div>
             </div>
-            <p>{user.username}</p>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
