@@ -2,17 +2,18 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: #f1f5ff;
+  background: #f4f7ff;
 }
 
 /* ================= HEADER ================= */
 .chat-user {
-  padding: 10px 15px;
+  height: 60px;
+  padding: 0 16px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  border-bottom: 1px solid #ddd;
-  background: #fff;
+  gap: 12px;
+  border-bottom: 1px solid #e5e7eb;
+  background: white;
 }
 
 .chat-user img:first-child {
@@ -20,254 +21,9 @@
   border-radius: 50%;
 }
 
-.chat-user p {
-  flex: 1;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-/* ================= MESSAGES ================= */
-.chat-msg {
-  flex: 1;
-  padding: 14px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  background: #f1f5ff;
-}
-
-/* Message rows */
-.s-msg,
-.r-msg {
-  display: flex;
-  gap: 6px;
-  max-width: 100%;
-}
-
-.s-msg {
-  justify-content: flex-end;
-}
-
-.r-msg {
-  justify-content: flex-start;
-}
-
-/* Message bubble */
-.msg {
-  background: #077eff;
-  color: white;
-  padding: 8px 12px;
-  border-radius: 8px;
-  max-width: 60%;
-  font-size: 13px;
-  line-height: 1.4;
-  word-break: break-word;
-}
-
-.r-msg .msg {
-  background: #e8e8e8;
-  color: #000;
-}
-
-/* Seen ticks */
-.seen {
-  font-size: 10px;
-  margin-left: 6px;
-  color: #cfe4ff;
-}
-
-/* ================= MEDIA ================= */
-.msg-img {
-  max-width: 220px;
-  border-radius: 10px;
-}
-
-.msg-video {
-  max-width: 260px;
-  border-radius: 10px;
-}
-
-/* Message info */
-.msg-info {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  color: gray;
-  margin-top: 4px;
-}
-
-.msg-info img {
-  width: 18px;
-  border-radius: 50%;
-}
-
-/* ================= INPUT ================= */
-.chat-input {
-  height: 58px;
-  padding: 0 12px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: white;
-  border-top: 1px solid #ddd;
-  position: relative;
-}
-
-/* Text input */
-.chat-input input {
-  flex: 1;
-  height: 36px;
-  padding: 0 14px;
-  font-size: 13px;
-  border-radius: 20px;
-  border: 1px solid #ccc;
-  outline: none;
-}
-
-/* Icons */
-.chat-input img {
-  width: 24px;
-  cursor: pointer;
-  opacity: 0.85;
-}
-
-.chat-input img:hover {
-  opacity: 1;
-}
-
-/* Label (gallery / attachment) */
-.chat-input label {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-}
-
-/* ================= EMOJI PICKER ================= */
-.emoji-picker {
-  position: absolute;
-  bottom: 70px;
-  left: 12px;
-  z-index: 9999;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-/* ================= WELCOME ================= */
-.chat-welcome {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-}
-
-.chat-welcome img {
-  width: 60px;
-}
-
-.chat-welcome p {
-  font-size: 18px;
-  font-weight: 500;
-  color: #383838;
-}
-
-/* ================= RESPONSIVE ================= */
-@media (max-width: 900px) {
-  .chat-input {
-    padding: 0 8px;
-  }
-
-  .msg {
-    max-width: 75%;
-  }
-}
-
-
-.chat-input img {
-  width: 22px;
-  cursor: pointer;
-  z-index: 5;
-}
-
-.emoji-picker {
-  position: absolute;
-  bottom: 70px;
-  right: 60px;
-  z-index: 999;
-}
-
-.online-dot {
-  width: 8px;
-  height: 8px;
-  background: #2ecc71;
-  border-radius: 50%;
-  display: inline-block;
-  margin-left: 6px;
-}
-
-.time {
-  font-size: 10px;
-  color: gray;
-  margin-top: 2px;
-  display: block;
-}
-
-
-.chat-input {
-  position: relative;
-}
-
-.chat-input img {
-  width: 22px;
-  cursor: pointer;
-  opacity: 0.8;
-}
-
-.chat-input img:hover {
-  opacity: 1;
-}
-
-/* Ensure icons visible */
-.chat-input label img {
-  display: block;
-}
-
-/* Voice / emoji spacing */
-.chat-input > img,
-.chat-input label {
-  flex-shrink: 0;
-}
-
-
-.chat-box {
-  position: relative;
-}
-
-.online-dot {
-  width: 8px;
-  height: 8px;
-  background: #00ff00;
-  border-radius: 50%;
-  display: inline-block;
-  margin-left: 6px;
-}
-
-
-.invoice-card {
-  background: #f5f5f5;
-  padding: 10px;
-  border-radius: 8px;
-  margin-bottom: 5px;
-}
-
-
 .chat-name {
+  flex: 1;
+  font-weight: 600;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -276,50 +32,294 @@
 .online-dot {
   width: 10px;
   height: 10px;
-  background: #22c55e;
+  background: #00d26a;
   border-radius: 50%;
-  box-shadow: 0 0 6px #22c55e;
+  box-shadow: 0 0 6px #00d26a;
+  flex-shrink: 0;
 }
 
-.chat-input {
+/* ================= MESSAGE AREA ================= */
+.chat-msg {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* MESSAGE ROW */
+.message-row {
+  display: flex;
+  flex-direction: column;
+  max-width: 70%;
+}
+
+.message-row.me {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.message-row.other {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+/* WRAPPER */
+.msg-wrapper {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+
+/* MESSAGE BUBBLE */
+.msg {
+  padding: 10px 14px;
+  border-radius: 16px;
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
   position: relative;
 }
 
-
-.emoji-picker {
-  position: absolute;
-  bottom: 65px;
-  left: 10px;
-  z-index: 9999;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+.me .msg {
+  background: #0b84ff;
+  color: white;
 }
 
-.emoji-btn {
-  width: 24px;
-  height: 24px;
-  object-fit: contain;
+.other .msg {
+  background: #e5e7eb;
+  color: black;
+}
+
+/* IMAGE */
+.msg-img {
+  max-width: 240px;
+  border-radius: 12px;
+  margin-bottom: 6px;
+}
+
+/* TIME */
+.time {
+  font-size: 11px;
+  color: gray;
+  margin-top: 4px;
+}
+
+/* EDITED LABEL */
+.edited {
+  font-size: 10px;
+  opacity: 0.6;
+  margin-left: 6px;
+}
+
+/* ================= ACTION BUTTONS ================= */
+.msg-actions {
+  position: absolute;
+  top: -18px;
+  right: -10px;
+  display: flex;
+  gap: 6px;
+  background: white;
+  border-radius: 12px;
+  padding: 3px 7px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  opacity: 0;
+  transform: scale(0.8);
+  transition: 0.2s ease;
+  font-size: 14px;
+  z-index: 5;
+}
+
+.msg-wrapper:hover .msg-actions {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.msg-actions span {
+  cursor: pointer;
+  color: #111827;
+}
+
+/* ================= INPUT AREA ================= */
+.chat-input {
+  height: 60px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-top: 1px solid #e5e7eb;
+  background: white;
+  position: relative;
+}
+
+.chat-input input {
+  flex: 1;
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 20px;
+  border: 1px solid #d1d5db;
+  outline: none;
+}
+
+.chat-input img {
+  width: 22px;
   cursor: pointer;
 }
 
+.send-btn {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+}
 
-/* Fix emoji picker layout */
+/* ================= EMOJI PICKER ================= */
+
 .emoji-picker {
   position: absolute;
-  bottom: 65px;
-  left: 10px;
-  z-index: 9999;
+  bottom: 55px;
+  right: 50px;  /* align with emoji icon */
+  z-index: 999;
 }
 
-/* Override internal emoji styles safely */
-.EmojiPickerReact {
-  --epr-search-input-height: 36px;
-  --epr-search-border-radius: 8px;
-  --epr-search-input-padding: 0 12px;
-  font-family: inherit;
+/* ================= WELCOME ================= */
+.chat-welcome {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
 }
 
+.msg-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.msg-wrapper:hover .msg-actions {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* INLINE EDIT BOX */
+.edit-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.edit-inline input {
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-size: 14px;
+  outline: none;
+  width: 180px;
+}
+
+/* EDIT ACTION BUTTONS */
+.edit-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.edit-actions button {
+  border: none;
+  padding: 4px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: 0.2s;
+}
+
+/* SAVE BUTTON */
+.edit-actions button:first-child {
+  background: #0b84ff;
+  color: white;
+}
+
+.edit-actions button:first-child:hover {
+  background: #086cd9;
+}
+
+/* CANCEL BUTTON */
+.edit-actions button:last-child {
+  background: #e5e7eb;
+}
+
+.edit-actions button:last-child:hover {
+  background: #d1d5db;
+}
+
+
+/* IMAGE MESSAGE BUBBLE FIX */
+.msg {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* IMAGE */
+.msg-img {
+  max-width: 260px;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+/* TEXT BELOW IMAGE */
+.msg-text {
+  font-size: 14px;
+  line-height: 1.4;
+  word-break: break-word;
+  margin-top: 4px;
+}
+
+/* EDITED LABEL */
+.edited {
+  font-size: 11px;
+  opacity: 0.7;
+  margin-left: 6px;
+}
+
+/* SENDER SIDE */
+.me .msg-text {
+  color: white;
+}
+
+.other .msg-text {
+  color: black;
+}
+
+
+.msg-wrapper {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+
+.ticks {
+  font-size: 11px;
+  margin-left: 6px;
+  opacity: 0.7;
+}
+
+.ticks.seen {
+  color: #00d26a;
+  font-weight: bold;
+}
+
+
+.ticks {
+  font-size: 12px;
+  margin-left: 6px;
+  color: #9ca3af;
+}
+
+.ticks.seen {
+  color: #22c55e;
+}
 

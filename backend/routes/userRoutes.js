@@ -85,7 +85,7 @@ router.put("/profile", authMiddleware, async (req, res) => {
 
     // 1️⃣ Get current user data
     const [currentRows] = await db.query(
-      "SELECT username, bio, avatar FROM users WHERE id=?",
+      "SELECT id, username, email, bio, avatar FROM users WHERE id=?",
       [userId]
     )
 
@@ -95,10 +95,21 @@ router.put("/profile", authMiddleware, async (req, res) => {
 
     const currentUser = currentRows[0]
 
-    // 2️⃣ Use new values only if provided
-    const updatedUsername = username?.trim() || currentUser.username
-    const updatedBio = bio ?? currentUser.bio
-    const updatedAvatar = avatar ?? currentUser.avatar
+    // 2️⃣ Only update provided fields
+    const updatedUsername =
+      typeof username === "string" && username.trim() !== ""
+        ? username.trim()
+        : currentUser.username
+
+    const updatedBio =
+      typeof bio === "string"
+        ? bio
+        : currentUser.bio
+
+    const updatedAvatar =
+      typeof avatar === "string" && avatar.trim() !== ""
+        ? avatar
+        : currentUser.avatar
 
     // 3️⃣ Update DB
     await db.query(
@@ -112,14 +123,27 @@ router.put("/profile", authMiddleware, async (req, res) => {
       [userId]
     )
 
-    // 5️⃣ Return updated user object ONLY
-    res.json(updatedRows[0])
+    const updatedUser = updatedRows[0]
+
+    if (!updatedUser) {
+      return res.status(500).json({ message: "Failed to fetch updated user" })
+    }
+
+    // 5️⃣ Send consistent response shape
+    res.json({
+      id: updatedUser.id,
+      username: updatedUser.username,
+      email: updatedUser.email,
+      avatar: updatedUser.avatar,
+      bio: updatedUser.bio
+    })
 
   } catch (err) {
     console.error("Profile update error:", err)
     res.status(500).json({ message: "Profile update failed" })
   }
 })
+
 
 
 /* ================= SEARCH USERS ================= */

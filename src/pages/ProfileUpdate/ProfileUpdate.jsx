@@ -1,7 +1,7 @@
 import React, { useState, useContext, useEffect } from "react"
 import "./ProfileUpdate.css"
 import assets from "../../assets/assets"
-import axios from "axios"
+import axios from "../../api/axios"
 import { toast } from "react-toastify"
 import { useNavigate } from "react-router-dom"
 import upload from "../../lib/upload"
@@ -17,42 +17,58 @@ const ProfileUpdate = () => {
   const [name, setName] = useState("")
   const [bio, setBio] = useState("")
   const [prevImage, setPrevImage] = useState("")
+  const [loading, setLoading] = useState(false)
 
+  /* ================= LOAD CURRENT USER DATA ================= */
   useEffect(() => {
     if (!userData) return
-    setName(userData.username || "")
+    setName(userData.username || userData.name || "")
     setBio(userData.bio || "")
     setPrevImage(userData.avatar || "")
   }, [userData])
 
+  /* ================= UPDATE PROFILE ================= */
   const profileUpdate = async (e) => {
     e.preventDefault()
 
     try {
+      setLoading(true)
+
       let avatarPath = prevImage
 
-      // upload new image if selected
+      // Upload new image if selected
       if (image) {
         avatarPath = await upload(image)
       }
 
-      const res = await axios.put("/api/users/profile", {
+      const res = await axios.put("/users/profile", {
         username: name,
         bio,
         avatar: avatarPath
       })
 
-      // 🔥 Update context WITHOUT refetch
-      updateUserInState(res.data.user)
+      // 🔥 Handle both backend response shapes
+      const updatedUser = res.data.user || res.data
 
-      toast.success("Profile updated")
+      if (!updatedUser) {
+        throw new Error("Invalid user response from server")
+      }
+
+      // Update global state safely
+      updateUserInState(updatedUser)
+
+      toast.success("Profile updated successfully")
       navigate("/chat")
 
     } catch (err) {
-      toast.error("Profile update failed")
+      console.error(err)
+      toast.error(err.response?.data?.message || "Profile update failed")
+    } finally {
+      setLoading(false)
     }
   }
 
+  /* ================= AVATAR PREVIEW ================= */
   const previewAvatar = image
     ? URL.createObjectURL(image)
     : prevImage
@@ -94,7 +110,9 @@ const ProfileUpdate = () => {
             required
           />
 
-          <button type="submit">Save Profile</button>
+          <button type="submit" disabled={loading}>
+            {loading ? "Updating..." : "Save Profile"}
+          </button>
         </form>
       </div>
     </div>

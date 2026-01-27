@@ -72,12 +72,100 @@ router.put("/read/:chatId", authMiddleware, async (req, res) => {
   }
 })
 
-/* ================= REMOVE BROKEN ROUTE ================= */
-/*
-❌ DELETED:
-router.post("/conversation", ...) 
-This was MongoDB code and does not belong in MySQL project.
-Chat creation is already handled in chatRoutes.
-*/
+router.delete("/:messageId", authMiddleware, async (req, res) => {
+  try {
+    const { messageId } = req.params
+    const userId = req.user.id
+
+    const [rows] = await db.query(
+      "SELECT sender_id, chat_id FROM messages WHERE id = ?",
+      [messageId]
+    )
+
+    if (!rows.length) return res.status(404).json({ message: "Not found" })
+    if (rows[0].sender_id !== userId)
+      return res.status(403).json({ message: "Not allowed" })
+
+    await db.query(
+      "UPDATE messages SET text = ?, deleted = 1 WHERE id = ?",
+      ["This message was deleted", messageId]
+    )
+
+    const io = req.app.get("io")
+    io.to(rows[0].chat_id).emit("message-deleted", {
+      messageId,
+      text: "This message was deleted"
+    })
+
+    res.json({ message: "Deleted" })
+  } catch (err) {
+    res.status(500).json({ message: "Server error" })
+  }
+})
+
+/* ================= EDIT MESSAGE ================= */
+router.put("/:messageId", authMiddleware, async (req, res) => {
+  try {
+    const { messageId } = req.params
+    const { text } = req.body
+    const userId = req.user.id
+
+    const [rows] = await db.query(
+      "SELECT sender_id, chat_id FROM messages WHERE id = ?",
+      [messageId]
+    )
+
+    if (!rows.length) return res.status(404).json({ message: "Not found" })
+    if (rows[0].sender_id !== userId)
+      return res.status(403).json({ message: "Not allowed" })
+
+    await db.query(
+      "UPDATE messages SET text = ?, edited = 1 WHERE id = ?",
+      [text, messageId]
+    )
+
+    const io = req.app.get("io")
+    io.to(rows[0].chat_id).emit("message-edited", {
+      messageId,
+      text
+    })
+
+    res.json({ message: "Edited" })
+  } catch {
+    res.status(500).json({ message: "Server error" })
+  }
+})
+
+
+// MARK ALL MESSAGES IN CHAT AS READ
+router.put("/read-chat/:chatId", authMiddleware, async (req, res) => {
+  const { chatId } = req.params
+
+  await db.query(
+    "UPDATE messages SET is_read = 1 WHERE chat_id = ?",
+    [chatId]
+  )
+
+  res.json({ success: true })
+})
+
+
+// MARK SINGLE MESSAGE READ
+router.put("/read/:id", authMiddleware, async (req, res) => {
+  const { id } = req.params
+
+  await db.query(
+    "UPDATE messages SET is_read = 1 WHERE id = ?",
+    [id]
+  )
+
+  // 🔥 notify sender live
+  req.app.get("io").emit("message-read", { messageId: id })
+
+  res.json({ success: true })
+})
+
+
+
 
 module.exports = router

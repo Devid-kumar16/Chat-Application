@@ -8,18 +8,38 @@ import ProfileUpdate from "./pages/ProfileUpdate/ProfileUpdate"
 import { ToastContainer } from "react-toastify"
 
 const App = () => {
-  const { userData, loadingUser } = useContext(AppContext)
+  const { loadingUser } = useContext(AppContext)
 
-  if (loadingUser) return <div style={{textAlign:"center"}}>Loading...</div>
+  const token = localStorage.getItem("token")  // ✅ TRUE AUTH CHECK
+
+  if (loadingUser) return <div style={{ textAlign: "center" }}>Loading...</div>
 
   return (
     <>
       <ToastContainer />
       <Routes>
-        <Route path="/login" element={userData ? <Navigate to="/chat" /> : <Login />} />
-        <Route path="/chat" element={!userData ? <Navigate to="/login" /> : <Chat />} />
-        <Route path="/profile" element={!userData ? <Navigate to="/login" /> : <ProfileUpdate />} />
-        <Route path="*" element={<Navigate to={userData ? "/chat" : "/login"} />} />
+        {/* If logged in, can't go to login */}
+        <Route
+          path="/login"
+          element={token ? <Navigate to="/chat" /> : <Login />}
+        />
+
+        {/* Protected routes */}
+        <Route
+          path="/chat"
+          element={token ? <Chat /> : <Navigate to="/login" />}
+        />
+
+        <Route
+          path="/profile"
+          element={token ? <ProfileUpdate /> : <Navigate to="/login" />}
+        />
+
+        {/* Default redirect */}
+        <Route
+          path="*"
+          element={<Navigate to={token ? "/chat" : "/login"} />}
+        />
       </Routes>
     </>
   )

@@ -42,55 +42,58 @@ app.use("/uploads", express.static("uploads"))
 /* ===================================================
    🔥 ONLINE USERS TRACKING
 =================================================== */
-let onlineUsers = []
+const onlineUsers = new Map() // userId -> socketId
 
 io.on("connection", (socket) => {
   console.log("🟢 Socket connected:", socket.id)
 
-  /* ===== USER COMES ONLINE ===== */
+  /* ===== USER ONLINE ===== */
   socket.on("user-online", (userId) => {
     socket.userId = userId
-
-    if (!onlineUsers.includes(userId)) {
-      onlineUsers.push(userId)
-    }
-
-    io.emit("online-users", onlineUsers)
-    console.log("🟢 Online Users:", onlineUsers)
+    onlineUsers.set(userId, socket.id)
+    io.emit("online-users", [...onlineUsers.keys()])
   })
 
   /* ===== JOIN CHAT ROOM ===== */
   socket.on("join-chat", ({ chatId }) => {
     if (!chatId) return
-    const room = `chat_${chatId}`
-    socket.join(room)
-    console.log(`📥 Joined ${room}`)
+    socket.join(`chat_${chatId}`)
+    console.log(`📥 Joined chat_${chatId}`)
   })
 
   /* ===== LEAVE CHAT ROOM ===== */
   socket.on("leave-chat", (chatId) => {
-    if (!chatId) return
-    const room = `chat_${chatId}`
-    socket.leave(room)
-    console.log(`📤 Left ${room}`)
+    socket.leave(`chat_${chatId}`)
   })
 
-  /* ===== SEND MESSAGE ===== */
+  /* ===== SEND MESSAGE (REALTIME) ===== */
   socket.on("send-message", ({ chatId, message }) => {
     if (!chatId || !message) return
-    const room = `chat_${chatId}`
-    socket.to(room).emit("receive-message", message)
+    io.to(`chat_${chatId}`).emit("receive-message", message)
+  })
+
+  /* ===== MESSAGE READ (TICKS) ===== */
+  socket.on("mark-read", ({ chatId, messageId }) => {
+    io.to(`chat_${chatId}`).emit("message-read", { messageId })
+  })
+
+  /* ===== MESSAGE EDIT ===== */
+  socket.on("message-edited", ({ chatId, messageId, text }) => {
+    io.to(`chat_${chatId}`).emit("message-edited", { messageId, text })
+  })
+
+  /* ===== MESSAGE DELETE ===== */
+  socket.on("message-deleted", ({ chatId, messageId }) => {
+    io.to(`chat_${chatId}`).emit("message-deleted", { messageId })
   })
 
   /* ===== USER DISCONNECT ===== */
   socket.on("disconnect", () => {
-    console.log("🔴 Socket disconnected:", socket.id)
-
     if (socket.userId) {
-      onlineUsers = onlineUsers.filter(id => id !== socket.userId)
-      io.emit("online-users", onlineUsers)
-      console.log("🟡 Online Users:", onlineUsers)
+      onlineUsers.delete(socket.userId)
+      io.emit("online-users", [...onlineUsers.keys()])
     }
+    console.log("🔴 Socket disconnected:", socket.id)
   })
 })
 
@@ -98,5 +101,5 @@ io.on("connection", (socket) => {
 const PORT = process.env.PORT || 5000
 
 server.listen(PORT, () => {
-  console.log(` Backend running on http://localhost:${PORT}`)
+  console.log(`🚀 Backend running on http://localhost:${PORT}`)
 })

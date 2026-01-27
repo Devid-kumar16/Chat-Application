@@ -1,6 +1,6 @@
 import { createContext, useState, useEffect, useCallback } from "react"
 import axios from "axios"
-import { connectSocket, getSocket } from "../socket"
+import { connectSocket } from "../socket"
 
 export const AppContext = createContext()
 const SERVER = "http://localhost:5000"
@@ -12,9 +12,15 @@ axios.interceptors.request.use(config => {
   return config
 })
 
+const normalizeUser = (u) => ({
+  ...u,
+  id: u.id || u._id
+})
+
 const AppContextProvider = ({ children }) => {
 
   const [userData, setUserData] = useState(null)
+  const [loadingUser, setLoadingUser] = useState(true)
   const [users, setUsers] = useState([])
   const [chatUser, setChatUser] = useState(null)
   const [messagesId, setMessagesId] = useState(null)
@@ -36,11 +42,21 @@ const AppContextProvider = ({ children }) => {
 
   /* ================= LOAD AUTH USER ================= */
   const refreshUser = useCallback(async () => {
+    const token = localStorage.getItem("token")
+
+    if (!token) {
+      resetAppState()
+      setLoadingUser(false)
+      return
+    }
+
     try {
       const res = await axios.get("/api/users/me")
-      setUserData(res.data)
-    } catch {
-      if (!localStorage.getItem("token")) resetAppState()
+      setUserData(normalizeUser(res.data))
+    } catch (err) {
+      console.log("User refresh failed")
+    } finally {
+      setLoadingUser(false)
     }
   }, [])
 
@@ -48,9 +64,15 @@ const AppContextProvider = ({ children }) => {
   const refreshUsers = useCallback(async () => {
     try {
       const res = await axios.get("/api/users")
-      setUsers(res.data.filter(u => u.id !== userData?.id))
-    } catch {}
-  }, [userData?.id])
+
+      const normalizedUsers = res.data.map(normalizeUser)
+      const myId = userData?.id
+
+      setUsers(normalizedUsers.filter(u => u.id !== myId))
+    } catch (err) {
+      console.log("Failed to load users")
+    }
+  }, [userData])
 
   /* ================= TRACK LAST MESSAGE ================= */
   useEffect(() => {
@@ -59,30 +81,40 @@ const AppContextProvider = ({ children }) => {
     setLastMessages(prev => ({ ...prev, [chatUser.id]: lastMsg }))
   }, [messages, chatUser])
 
-  /* ===================================================
-     🟢 SOCKET + ONLINE USERS (FIXED)
-  =================================================== */
+  /* ================= SOCKET ================= */
   useEffect(() => {
     if (!userData?.id) return
 
-    // 1️⃣ Ensure socket exists
     const socket = connectSocket(userData.id)
-
-    // 2️⃣ Tell server user is online
     socket.emit("user-online", userData.id)
 
-    // 3️⃣ Listen to online list
     const handleOnline = (ids) => {
-      setOnlineUsers(ids)
-    }
+  setOnlineUsers(ids.map(id => Number(id)))
+}
 
     socket.on("online-users", handleOnline)
 
     return () => socket.off("online-users", handleOnline)
   }, [userData?.id])
 
+  /* ================= SAFE PROFILE UPDATE ================= */
   const updateUserInState = (updatedUser) => {
-    setUserData(updatedUser)
+    if (!updatedUser) return
+
+    const normalized = normalizeUser(updatedUser)
+
+    // Update logged-in user
+    setUserData(prev => prev?.id === normalized.id ? normalized : prev)
+
+    // Update sidebar users list
+    setUsers(prev =>
+      prev.map(u => u.id === normalized.id ? normalized : u)
+    )
+
+    // Update active chat user
+    setChatUser(prev =>
+      prev?.id === normalized.id ? normalized : prev
+    )
   }
 
   useEffect(() => { refreshUser() }, [])
@@ -99,7 +131,8 @@ const AppContextProvider = ({ children }) => {
       lastMessages,
       onlineUsers,
       refreshUser,
-      resetAppState
+      resetAppState,
+      loadingUser
     }}>
       {children}
     </AppContext.Provider>
