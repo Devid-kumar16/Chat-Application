@@ -78,26 +78,6 @@ router.get("/my", authMiddleware, async (req, res) => {
   }
 })
 
-/* ================= GET SINGLE CHAT INFO ================= */
-router.get("/:chatId", authMiddleware, async (req, res) => {
-  const { chatId } = req.params
-  const userId = req.user.id
 
-  try {
-    const [rows] = await db.query(
-      `SELECT * FROM chats WHERE id = ? AND (user1_id = ? OR user2_id = ?)`,
-      [chatId, userId, userId]
-    )
-
-    if (!rows.length) {
-      return res.status(404).json({ message: "Chat not found" })
-    }
-
-    res.json(rows[0])
-  } catch (err) {
-    console.error("Chat fetch error:", err)
-    res.status(500).json({ message: "Server error" })
-  }
-})
 
 module.exports = router

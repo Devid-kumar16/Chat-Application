@@ -42,52 +42,58 @@ app.use("/uploads", express.static("uploads"))
 /* ===================================================
    🔥 ONLINE USERS TRACKING
 =================================================== */
-const onlineUsers = new Map() // userId -> socketId
+const onlineUsers = new Map()
 
 io.on("connection", (socket) => {
   console.log("🟢 Socket connected:", socket.id)
 
-  /* ===== USER ONLINE ===== */
+  // ===== USER ONLINE =====
   socket.on("user-online", (userId) => {
     socket.userId = userId
     onlineUsers.set(userId, socket.id)
     io.emit("online-users", [...onlineUsers.keys()])
   })
 
-  /* ===== JOIN CHAT ROOM ===== */
+  // ===== JOIN ROOM =====
   socket.on("join-chat", ({ chatId }) => {
     if (!chatId) return
-    socket.join(`chat_${chatId}`)
-    console.log(`📥 Joined chat_${chatId}`)
+    socket.join(chatId)
+    console.log(`📥 Joined room ${chatId}`)
   })
 
-  /* ===== LEAVE CHAT ROOM ===== */
+  // ===== LEAVE ROOM =====
   socket.on("leave-chat", (chatId) => {
-    socket.leave(`chat_${chatId}`)
+    socket.leave(chatId)
   })
 
-  /* ===== SEND MESSAGE (REALTIME) ===== */
-  socket.on("send-message", ({ chatId, message }) => {
-    if (!chatId || !message) return
-    io.to(`chat_${chatId}`).emit("receive-message", message)
-  })
+  // ===== SEND MESSAGE =====
+socket.on("send-message", ({ chatId, message }) => {
+  if (!chatId || !message) return
+  io.to(chatId).emit("receive-message", message)
+})
 
-  /* ===== MESSAGE READ (TICKS) ===== */
-  socket.on("mark-read", ({ chatId, messageId }) => {
-    io.to(`chat_${chatId}`).emit("message-read", { messageId })
-  })
+  // ===== MESSAGE READ =====
+socket.on("mark-read", ({ chatId, messageId }) => {
+  if (!chatId) return
+  io.to(chatId).emit("message-read", { messageId })
+})
 
-  /* ===== MESSAGE EDIT ===== */
-  socket.on("message-edited", ({ chatId, messageId, text }) => {
-    io.to(`chat_${chatId}`).emit("message-edited", { messageId, text })
-  })
 
-  /* ===== MESSAGE DELETE ===== */
-  socket.on("message-deleted", ({ chatId, messageId }) => {
-    io.to(`chat_${chatId}`).emit("message-deleted", { messageId })
-  })
+  // ===== MESSAGE EDIT =====
+socket.on("message-edited", ({ chatId, messageId, text }) => {
+  if (!chatId) return
+  io.to(chatId).emit("message-edited", { messageId, text })
+})
 
-  /* ===== USER DISCONNECT ===== */
+
+  // ===== MESSAGE DELETE =====
+socket.on("message-deleted", ({ chatId, messageId }) => {
+  if (!chatId) return
+  io.to(chatId).emit("message-deleted", { messageId })
+})
+
+
+  // ===== DISCONNECT =====
   socket.on("disconnect", () => {
     if (socket.userId) {
       onlineUsers.delete(socket.userId)

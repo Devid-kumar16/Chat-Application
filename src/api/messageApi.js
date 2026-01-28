@@ -2,7 +2,7 @@ import axios from "axios"
 
 const API = "http://localhost:5000/api/messages"
 
-/* ================= COMMON HEADER ================= */
+/* ================= AUTH HEADER ================= */
 const authHeader = () => ({
   headers: {
     Authorization: `Bearer ${localStorage.getItem("token")}`
@@ -14,7 +14,7 @@ export const sendMessageApi = (data) => {
   return axios.post(`${API}/send`, data, authHeader())
 }
 
-/* ================= GET MESSAGES ================= */
+/* ================= GET MESSAGES (BY CHAT) ================= */
 export const getMessagesApi = (chatId) => {
   return axios.get(`${API}/${chatId}`, authHeader())
 }
@@ -24,20 +24,17 @@ export const deleteMessageApi = (messageId) => {
   return axios.delete(`${API}/${messageId}`, authHeader())
 }
 
-
 /* ================= EDIT MESSAGE ================= */
 export const editMessageApi = (messageId, text) => {
-  return axios.put(
-    `${API}/${messageId}`,
-    { text },
-    authHeader()
-  )
+  return axios.put(`${API}/${messageId}`, { text }, authHeader())
 }
 
+/* ================= MARK SINGLE MESSAGE READ ================= */
+export const markMessageReadApi = (id) => {
+  return axios.put(`${API}/read/${id}`, {}, authHeader())
+}
 
-export const markMessagesReadApi = (chatId) =>
-  axios.put(`/api/messages/read-chat/${chatId}`)
-
-// ✅ MARK SINGLE MESSAGE AS READ
-export const markMessageReadApi = (id) =>
-  axios.put(`/api/messages/read/${id}`)
+/* ================= MARK ALL READ IN CHAT ================= */
+export const markMessagesReadApi = (chatId) => {
+  return axios.put(`${API}/read-chat/${chatId}`, {}, authHeader())
+}

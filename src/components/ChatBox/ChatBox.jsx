@@ -6,14 +6,14 @@ import upload from "../../lib/upload"
 import { toast } from "react-toastify"
 import EmojiPicker from "emoji-picker-react"
 import { sendMessageApi, getMessagesApi, deleteMessageApi, editMessageApi, markMessagesReadApi, markMessageReadApi } from "../../api/messageApi"
-import { getSocket } from "../../socket"
+import { getSocket, getRoomId } from "../../socket"
+
 
 const SERVER = "http://localhost:5000"
 
 const ChatBox = () => {
   const {
     userData,
-    messagesId,
     chatUser,
     messages = [],
     setMessages,
@@ -21,6 +21,10 @@ const ChatBox = () => {
     setChatVisible,
     onlineUsers
   } = useContext(AppContext)
+
+  const chatId = userData && chatUser
+  ? [userData.id, chatUser.id].sort().join("_")
+  : null
 
   const [input, setInput] = useState("")
   const [showEmoji, setShowEmoji] = useState(false)
@@ -39,7 +43,7 @@ const ChatBox = () => {
   /* CLEAR MESSAGES WHEN CHAT CHANGES */
   useEffect(() => {
     setMessages([])
-  }, [messagesId])
+  }, [chatUser])
 
   /* AVATAR */
   const avatarUrl = chatUser?.avatar
@@ -53,92 +57,73 @@ const ChatBox = () => {
     endRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
-  /* LOAD MESSAGES */
+/* LOAD MESSAGES */
 useEffect(() => {
-  if (!messagesId) return
-
-  getMessagesApi(messagesId)
-    .then(res => {
-      setMessages(res.data || [])
-      markMessagesReadApi(messagesId)
-
-      getSocket()?.emit("mark-read", { chatId: messagesId })
-    })
-}, [messagesId])
+  if (!chatId) return
+  getMessagesApi(chatId).then(res => setMessages(res.data || []))
+}, [chatId])
 
 
 useEffect(() => {
-  if (!messagesId || !chatUser) return
+  const socket = getSocket()
+  if (!socket || !chatId) return
 
-  messages.forEach(msg => {
-    if (msg.sender_id !== userData.id && msg.is_read === 0) {
-      markMessageReadApi(msg.id)
-      getSocket()?.emit("mark-read", { chatId: messagesId, messageId: msg.id })
-    }
-  })
-}, [messages])
+  socket.emit("join-chat", { chatId })
 
-
-
-  /* SOCKET LISTENER */
-  useEffect(() => {
-    const socket = getSocket()
-    if (!socket || !messagesId) return
-
-    socket.emit("join-chat", { chatId: messagesId })
-
-    const handleIncoming = (message) => {
-      setMessages(prev =>
-        prev.some(m => m.id === message.id) ? prev : [...prev, message]
-      )
-    }
-
-    socket.on("receive-message", handleIncoming)
-
-    socket.on("message-deleted", ({ messageId, text }) => {
-      setMessages(prev =>
-        prev.map(m =>
-          m.id === messageId ? { ...m, text, deleted: 1 } : m
-        )
-      )
-    })
-
-    socket.on("message-edited", ({ messageId, text }) => {
-      setMessages(prev =>
-        prev.map(m =>
-          m.id === messageId ? { ...m, text, edited: 1 } : m
-        )
-      )
-    })
-
-socket.on("message-read", ({ messageId }) => {
-  setMessages(prev =>
-    prev.map(m =>
-      m.id === messageId ? { ...m, is_read: 1 } : m
+  const handleIncoming = (message) => {
+    setMessages(prev =>
+      prev.some(m => m.id === message.id) ? prev : [...prev, message]
     )
-  )
-})
+  }
+
+  socket.on("receive-message", handleIncoming)
+
+  socket.on("message-deleted", ({ messageId }) => {
+    setMessages(prev =>
+      prev.map(m => m.id === messageId ? { ...m, deleted: 1, text: "This message was deleted" } : m)
+    )
+  })
+
+  socket.on("message-edited", ({ messageId, text }) => {
+    setMessages(prev =>
+      prev.map(m => m.id === messageId ? { ...m, text, edited: 1 } : m)
+    )
+  })
+
+  socket.on("message-read", ({ messageId }) => {
+    setMessages(prev =>
+      prev.map(m => m.id === messageId ? { ...m, is_read: 1 } : m)
+    )
+  })
+
+  return () => {
+    socket.off("receive-message", handleIncoming)
+    socket.off("message-deleted")
+    socket.off("message-edited")
+    socket.off("message-read")
+  }
+
+}, [chatId])
 
 
 
-    return () => {
-      socket.emit("leave-chat", messagesId)
-      socket.off("receive-message", handleIncoming)
-      socket.off("message-deleted")
-      socket.off("message-edited")
-    }
-  }, [messagesId])
+useEffect(() => {
+  if (!chatId || !userData) return
 
+  const socket = getSocket()
 
-  useEffect(() => {
-    if (!messagesId || !chatUser || !userData) return
-
-    markMessagesReadApi(messagesId)
-    getSocket()?.emit("messages-seen", {
-      chatId: messagesId,
-      userId: userData.id
+  messages
+    .filter(m => m.sender_id !== userData.id && m.is_read === 0)
+    .forEach(m => {
+      markMessageReadApi(m.id)
+      socket?.emit("mark-read", { chatId, messageId: m.id })
     })
-  }, [messagesId])
+
+}, [messages, chatId, userData])
+
+
+
+
 
 
   useEffect(() => {
@@ -155,35 +140,40 @@ socket.on("message-read", ({ messageId }) => {
 
 
   /* SEND TEXT */
-  const sendMessage = async () => {
-    if (!input.trim() || !messagesId || !userData || !chatUser) return
+const sendMessage = async () => {
+  if (!input.trim() || !chatId) return
 
-    const tempId = Date.now()
-    const optimisticMsg = {
-      id: tempId,
-      text: input.trim(),
-      sender_id: userData.id,
-      created_at: new Date().toISOString()
-    }
-
-    setMessages(prev => [...prev, optimisticMsg])
-    setInput("")
-
-    try {
-      const res = await sendMessageApi({
-        receiverId: chatUser.id,
-        text: optimisticMsg.text
-      })
-
-      const realMsg = res.data
-      getSocket()?.emit("send-message", { chatId: messagesId, message: realMsg })
-
-      setMessages(prev => prev.map(m => m.id === tempId ? realMsg : m))
-    } catch {
-      toast.error("Message failed")
-      setMessages(prev => prev.filter(m => m.id !== tempId))
-    }
+  const tempId = Date.now()
+  const optimisticMsg = {
+    id: tempId,
+    text: input.trim(),
+    sender_id: userData.id,
+    created_at: new Date().toISOString()
   }
+
+  setMessages(prev => [...prev, optimisticMsg])
+  setInput("")
+
+  try {
+    const res = await sendMessageApi({
+      chatId,
+      receiverId: chatUser.id,
+      text: optimisticMsg.text
+    })
+
+    const realMsg = res.data
+
+    getSocket()?.emit("send-message", { chatId, message: realMsg })
+
+
+    setMessages(prev => prev.map(m => m.id === tempId ? realMsg : m))
+  } catch (err) {
+    console.error(err)
+    toast.error("Message failed")
+    setMessages(prev => prev.filter(m => m.id !== tempId))
+  }
+}
+
 
 
   const handleDelete = async (id) => {
@@ -196,7 +186,10 @@ socket.on("message-read", ({ messageId }) => {
         )
       )
 
-      getSocket()?.emit("message-deleted", { chatId: messagesId, messageId: id })
+
+      getSocket()?.emit("message-deleted", { chatId, messageId: id })
+
+
 
     } catch {
       toast.error("Delete failed")
@@ -215,11 +208,9 @@ socket.on("message-read", ({ messageId }) => {
         )
       )
 
-      getSocket()?.emit("message-edited", {
-        chatId: messagesId,
-        messageId: editing.id,
-        text: editText
-      })
+       getSocket()?.emit("message-edited", { chatId, messageId: editing.id, text: editText })
+
+
 
       setEditing(null)
 
@@ -230,26 +221,36 @@ socket.on("message-read", ({ messageId }) => {
 
 
   /* SEND MEDIA */
-  const sendMedia = async (e) => {
-    const file = e.target.files[0]
-    if (!file || !chatUser) return
+const sendMedia = async (e) => {
+  const file = e.target.files[0]
+  if (!file || !chatUser || !chatId) return
 
-    try {
-      const url = await upload(file)
-      const type = file.type.startsWith("image") ? "image" : "file"
+  try {
+    const url = await upload(file)
+    const type = file.type.startsWith("image") ? "image" : "file"
 
-      const res = await sendMessageApi({
-        receiverId: chatUser.id,
-        media: url,
-        mediaType: type
-      })
+    const res = await sendMessageApi({
+      chatId,
+      receiverId: chatUser.id,
+      media: url,
+      mediaType: type
+    })
 
-      getSocket()?.emit("send-message", { chatId: messagesId, message: res.data })
-      setMessages(prev => [...prev, res.data])
-    } catch {
-      toast.error("Upload failed")
-    }
+    const realMsg = res.data
+
+    // 🔥 REALTIME SEND
+    getSocket()?.emit("send-message", { chatId, message: realMsg })
+
+    // 🔥 INSTANT UI UPDATE
+    setMessages(prev =>
+      prev.some(m => m.id === realMsg.id) ? prev : [...prev, realMsg]
+    )
+
+  } catch {
+    toast.error("Upload failed")
   }
+}
+
 
   const formatTime = (msg) => {
     const date = new Date(msg.created_at)

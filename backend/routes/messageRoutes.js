@@ -5,10 +5,13 @@ const authMiddleware = require("../middleware/authMiddleware")
 
 /* ================= SEND MESSAGE ================= */
 router.post("/send", authMiddleware, async (req, res) => {
-  const { chatId, receiverId, text, media, mediaType } = req.body
-  const senderId = req.user.id  // 🔥 NEVER trust client senderId
-
   try {
+    const { receiverId, text, media, mediaType, chatId } = req.body
+    const senderId = req.user.id
+
+    if (!chatId || !receiverId)
+      return res.status(400).json({ error: "chatId and receiverId required" })
+
     const [result] = await db.query(
       `INSERT INTO messages 
        (chat_id, sender_id, receiver_id, text, media, media_type)
@@ -16,26 +19,23 @@ router.post("/send", authMiddleware, async (req, res) => {
       [chatId, senderId, receiverId, text || null, media || null, mediaType || null]
     )
 
-    const insertedId = result.insertId
-
     const [rows] = await db.query(
-      `SELECT * FROM messages WHERE id = ?`,
-      [insertedId]
+      "SELECT * FROM messages WHERE id = ?",
+      [result.insertId]
     )
 
     res.json(rows[0])
-
   } catch (err) {
     console.error("Send message error:", err)
     res.status(500).json({ error: "Message send failed" })
   }
 })
 
-/* ================= GET MESSAGES ================= */
+/* ================= LOAD CHAT MESSAGES ================= */
 router.get("/:chatId", authMiddleware, async (req, res) => {
-  const { chatId } = req.params
-
   try {
+    const { chatId } = req.params
+
     const [rows] = await db.query(
       `SELECT * FROM messages
        WHERE chat_id = ?
@@ -44,34 +44,13 @@ router.get("/:chatId", authMiddleware, async (req, res) => {
     )
 
     res.json(rows)
-
   } catch (err) {
-    console.error("Fetch messages error:", err)
+    console.error(err)
     res.status(500).json({ message: "Server error" })
   }
 })
 
-/* ================= MARK AS READ ================= */
-router.put("/read/:chatId", authMiddleware, async (req, res) => {
-  const { chatId } = req.params
-  const userId = req.user.id
-
-  try {
-    await db.query(
-      `UPDATE messages 
-       SET is_read = TRUE 
-       WHERE chat_id = ? AND receiver_id = ?`,
-      [chatId, userId]
-    )
-
-    res.json({ success: true })
-
-  } catch (err) {
-    console.error("Read update error:", err)
-    res.status(500).json({ error: "Read update failed" })
-  }
-})
-
+/* ================= DELETE MESSAGE ================= */
 router.delete("/:messageId", authMiddleware, async (req, res) => {
   try {
     const { messageId } = req.params
@@ -91,8 +70,7 @@ router.delete("/:messageId", authMiddleware, async (req, res) => {
       ["This message was deleted", messageId]
     )
 
-    const io = req.app.get("io")
-    io.to(rows[0].chat_id).emit("message-deleted", {
+    req.app.get("io").to(rows[0].chat_id).emit("message-deleted", {
       messageId,
       text: "This message was deleted"
     })
@@ -124,8 +102,7 @@ router.put("/:messageId", authMiddleware, async (req, res) => {
       [text, messageId]
     )
 
-    const io = req.app.get("io")
-    io.to(rows[0].chat_id).emit("message-edited", {
+    req.app.get("io").to(rows[0].chat_id).emit("message-edited", {
       messageId,
       text
     })
@@ -136,8 +113,28 @@ router.put("/:messageId", authMiddleware, async (req, res) => {
   }
 })
 
+/* ================= MARK SINGLE MESSAGE READ ================= */
+router.put("/read/:id", authMiddleware, async (req, res) => {
+  const { id } = req.params
 
-// MARK ALL MESSAGES IN CHAT AS READ
+  const [rows] = await db.query(
+    "SELECT chat_id FROM messages WHERE id = ?",
+    [id]
+  )
+
+  await db.query(
+    "UPDATE messages SET is_read = 1 WHERE id = ?",
+    [id]
+  )
+
+  if (rows.length) {
+    req.app.get("io").to(rows[0].chat_id).emit("message-read", { messageId: id })
+  }
+
+  res.json({ success: true })
+})
+
+/* ================= MARK ALL READ IN CHAT ================= */
 router.put("/read-chat/:chatId", authMiddleware, async (req, res) => {
   const { chatId } = req.params
 
@@ -148,24 +145,5 @@ router.put("/read-chat/:chatId", authMiddleware, async (req, res) => {
 
   res.json({ success: true })
 })
-
-
-// MARK SINGLE MESSAGE READ
-router.put("/read/:id", authMiddleware, async (req, res) => {
-  const { id } = req.params
-
-  await db.query(
-    "UPDATE messages SET is_read = 1 WHERE id = ?",
-    [id]
-  )
-
-  // 🔥 notify sender live
-  req.app.get("io").emit("message-read", { messageId: id })
-
-  res.json({ success: true })
-})
-
-
-
 
 module.exports = router
