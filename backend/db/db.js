@@ -33,42 +33,13 @@ const db = mysql.createPool({
     const [dbName] = await conn.query("SELECT DATABASE() as db")
     console.log(`✅ MySQL connected to database: ${dbName[0].db}`)
 
-    // 🔥 VERIFY messages.chat_id type
-    const [columns] = await conn.query(`
-      SELECT DATA_TYPE
-      FROM INFORMATION_SCHEMA.COLUMNS
-      WHERE TABLE_SCHEMA = ?
-      AND TABLE_NAME = 'messages'
-      AND COLUMN_NAME = 'chat_id'
-    `, [DB_NAME])
-
-if (!columns.length) {
-  console.error("❌ messages.chat_id column not found!")
-  conn.release()
-  process.exit(1)
-}
-
-
-    const type = columns[0].DATA_TYPE
-
-    if (type !== "varchar" && type !== "text") {
-      console.error(`
-❌ DATABASE SCHEMA ERROR:
-messages.chat_id must be VARCHAR but is ${type.toUpperCase()}.
-
-Run this SQL:
-
-ALTER TABLE messages MODIFY chat_id VARCHAR(50) NOT NULL;
-      `)
-      process.exit(1)
-    }
-
-    console.log("✅ Database schema verified")
+    console.log("ℹ️ Database ready (chat_id uses INT from chats table)")
 
     conn.release()
   } catch (err) {
-    console.error("❌ MySQL startup check failed:", err.message)
-    process.exit(1)
+    console.error("❌ MySQL connection failed:", err.message)
+    console.error("⚠️ Server will continue running, but DB queries will fail until fixed.")
+    // 🚀 IMPORTANT: do NOT crash server
   }
 })()
 

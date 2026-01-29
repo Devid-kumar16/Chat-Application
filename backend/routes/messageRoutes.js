@@ -6,11 +6,14 @@ const authMiddleware = require("../middleware/authMiddleware")
 /* ================= SEND MESSAGE ================= */
 router.post("/send", authMiddleware, async (req, res) => {
   try {
-    const { receiverId, text, media, mediaType, chatId } = req.body
+    const { receiverId, text, media, mediaType } = req.body
     const senderId = req.user.id
 
-    if (!chatId || !receiverId)
-      return res.status(400).json({ error: "chatId and receiverId required" })
+    if (!receiverId)
+      return res.status(400).json({ error: "receiverId required" })
+
+    // ✅ SERVER CREATES CHAT ID (SORTED)
+    const chatId = [senderId, receiverId].sort((a, b) => a - b).join("_")
 
     const [result] = await db.query(
       `INSERT INTO messages 
@@ -31,14 +34,18 @@ router.post("/send", authMiddleware, async (req, res) => {
   }
 })
 
-/* ================= LOAD CHAT MESSAGES ================= */
-router.get("/:chatId", authMiddleware, async (req, res) => {
+
+router.get("/:userId", authMiddleware, async (req, res) => {
   try {
-    const { chatId } = req.params
+    const myId = req.user.id
+    const otherId = Number(req.params.userId)
+
+    // ✅ SERVER CREATES CORRECT CHAT ID
+    const chatId = [myId, otherId].sort((a, b) => a - b).join("_")
 
     const [rows] = await db.query(
       `SELECT * FROM messages
-       WHERE chat_id = ?
+       WHERE chat_id = ? AND deleted = 0
        ORDER BY created_at ASC`,
       [chatId]
     )

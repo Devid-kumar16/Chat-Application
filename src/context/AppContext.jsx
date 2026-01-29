@@ -1,6 +1,6 @@
 import { createContext, useState, useEffect, useCallback } from "react"
 import axios from "axios"
-import { connectSocket } from "../socket"
+import { connectSocket, disconnectSocket } from "../socket"
 
 export const AppContext = createContext()
 const SERVER = "http://localhost:5000"
@@ -30,6 +30,7 @@ const AppContextProvider = ({ children }) => {
   const [onlineUsers, setOnlineUsers] = useState([])
 
   const resetAppState = () => {
+    disconnectSocket()   // 🔥 important
     setUserData(null)
     setUsers([])
     setMessagesId(null)
@@ -55,6 +56,7 @@ const AppContextProvider = ({ children }) => {
       setUserData(normalizeUser(res.data))
     } catch (err) {
       console.log("User refresh failed")
+      resetAppState()
     } finally {
       setLoadingUser(false)
     }
@@ -64,10 +66,8 @@ const AppContextProvider = ({ children }) => {
   const refreshUsers = useCallback(async () => {
     try {
       const res = await axios.get("/api/users")
-
       const normalizedUsers = res.data.map(normalizeUser)
       const myId = userData?.id
-
       setUsers(normalizedUsers.filter(u => u.id !== myId))
     } catch (err) {
       console.log("Failed to load users")
@@ -86,35 +86,25 @@ const AppContextProvider = ({ children }) => {
     if (!userData?.id) return
 
     const socket = connectSocket(userData.id)
-    socket.emit("user-online", userData.id)
 
     const handleOnline = (ids) => {
-  setOnlineUsers(ids.map(id => Number(id)))
-}
+      setOnlineUsers(ids.map(id => Number(id)))
+    }
 
     socket.on("online-users", handleOnline)
 
-    return () => socket.off("online-users", handleOnline)
+    return () => {
+      socket.off("online-users", handleOnline)
+    }
   }, [userData?.id])
 
-  /* ================= SAFE PROFILE UPDATE ================= */
   const updateUserInState = (updatedUser) => {
     if (!updatedUser) return
-
     const normalized = normalizeUser(updatedUser)
 
-    // Update logged-in user
     setUserData(prev => prev?.id === normalized.id ? normalized : prev)
-
-    // Update sidebar users list
-    setUsers(prev =>
-      prev.map(u => u.id === normalized.id ? normalized : u)
-    )
-
-    // Update active chat user
-    setChatUser(prev =>
-      prev?.id === normalized.id ? normalized : prev
-    )
+    setUsers(prev => prev.map(u => u.id === normalized.id ? normalized : u))
+    setChatUser(prev => prev?.id === normalized.id ? normalized : prev)
   }
 
   useEffect(() => { refreshUser() }, [])

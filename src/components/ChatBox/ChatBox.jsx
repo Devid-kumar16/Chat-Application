@@ -22,9 +22,12 @@ const ChatBox = () => {
     onlineUsers
   } = useContext(AppContext)
 
-  const chatId = userData && chatUser
-  ? [userData.id, chatUser.id].sort().join("_")
+
+  const roomId = userData && chatUser
+  ? [userData.id, chatUser.id].sort((a,b)=>a-b).join("_")
   : null
+
+
 
   const [input, setInput] = useState("")
   const [showEmoji, setShowEmoji] = useState(false)
@@ -59,16 +62,17 @@ const ChatBox = () => {
 
 /* LOAD MESSAGES */
 useEffect(() => {
-  if (!chatId) return
-  getMessagesApi(chatId).then(res => setMessages(res.data || []))
-}, [chatId])
+  if (!chatUser) return
+  getMessagesApi(chatUser.id).then(res => setMessages(res.data || []))
+}, [chatUser])
+
 
 
 useEffect(() => {
   const socket = getSocket()
-  if (!socket || !chatId) return
+if (!socket || !roomId) return
+socket.emit("join-chat", { chatId: roomId })
 
-  socket.emit("join-chat", { chatId })
 
   const handleIncoming = (message) => {
     setMessages(prev =>
@@ -76,7 +80,9 @@ useEffect(() => {
     )
   }
 
-  socket.on("receive-message", handleIncoming)
+      socket.on("receive-message", msg =>
+      setMessages(prev => (prev.some(m => m.id === msg.id) ? prev : [...prev, msg]))
+    )
 
   socket.on("message-deleted", ({ messageId }) => {
     setMessages(prev =>
@@ -103,12 +109,12 @@ useEffect(() => {
     socket.off("message-read")
   }
 
-}, [chatId])
+}, [roomId])
 
 
 
 useEffect(() => {
-  if (!chatId || !userData) return
+  if (!roomId || !userData) return
 
   const socket = getSocket()
 
@@ -116,14 +122,11 @@ useEffect(() => {
     .filter(m => m.sender_id !== userData.id && m.is_read === 0)
     .forEach(m => {
       markMessageReadApi(m.id)
-      socket?.emit("mark-read", { chatId, messageId: m.id })
+      socket?.emit("mark-read", { chatId: roomId, messageId: m.id })
+
     })
 
-}, [messages, chatId, userData])
-
-
-
-
+}, [messages, roomId, userData])
 
 
   useEffect(() => {
@@ -141,7 +144,7 @@ useEffect(() => {
 
   /* SEND TEXT */
 const sendMessage = async () => {
-  if (!input.trim() || !chatId) return
+  if (!input.trim() || !chatUser) return
 
   const tempId = Date.now()
   const optimisticMsg = {
@@ -156,14 +159,13 @@ const sendMessage = async () => {
 
   try {
     const res = await sendMessageApi({
-      chatId,
       receiverId: chatUser.id,
       text: optimisticMsg.text
     })
 
     const realMsg = res.data
 
-    getSocket()?.emit("send-message", { chatId, message: realMsg })
+    getSocket()?.emit("send-message", { chatId: roomId, message: realMsg })
 
 
     setMessages(prev => prev.map(m => m.id === tempId ? realMsg : m))
@@ -187,7 +189,7 @@ const sendMessage = async () => {
       )
 
 
-      getSocket()?.emit("message-deleted", { chatId, messageId: id })
+      getSocket()?.emit("message-deleted", { chatId: roomId, messageId: id })
 
 
 
@@ -208,7 +210,7 @@ const sendMessage = async () => {
         )
       )
 
-       getSocket()?.emit("message-edited", { chatId, messageId: editing.id, text: editText })
+       getSocket()?.emit("message-edited", { chatId: roomId, messageId: editing.id, text: editText })
 
 
 
@@ -223,14 +225,13 @@ const sendMessage = async () => {
   /* SEND MEDIA */
 const sendMedia = async (e) => {
   const file = e.target.files[0]
-  if (!file || !chatUser || !chatId) return
+  if (!file || !chatUser || !roomId) return   // ✅ use roomId
 
   try {
     const url = await upload(file)
     const type = file.type.startsWith("image") ? "image" : "file"
 
     const res = await sendMessageApi({
-      chatId,
       receiverId: chatUser.id,
       media: url,
       mediaType: type
@@ -239,17 +240,19 @@ const sendMedia = async (e) => {
     const realMsg = res.data
 
     // 🔥 REALTIME SEND
-    getSocket()?.emit("send-message", { chatId, message: realMsg })
+    getSocket()?.emit("send-message", { chatId: roomId, message: realMsg })
 
-    // 🔥 INSTANT UI UPDATE
+    // 🔥 UI UPDATE
     setMessages(prev =>
       prev.some(m => m.id === realMsg.id) ? prev : [...prev, realMsg]
     )
 
-  } catch {
+  } catch (err) {
+    console.error(err)
     toast.error("Upload failed")
   }
 }
+
 
 
   const formatTime = (msg) => {
